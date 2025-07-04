@@ -9,5 +9,5 @@ type Props = {
 
 export function NameComponent({ id, name }: Props) {
 	const user = useSelector(selectMemberClanByUserId(id));
-	return <p className="text-sm font-medium dark:text-[#AEAEAE] text-colorTextLightMode">{name ? name : user?.user?.username}</p>;
+	return <p className="text-sm font-medium text-theme-primary">{name ? name : user?.user?.username}</p>;
 }
