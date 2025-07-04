@@ -33,7 +33,7 @@
 	--color-text-active-button: #4361ee;
 	--bg-button-add-friend: #4361ee;
 	--border-color-primary: #d1d1d1;
-	--bg-theme-direct-message: #f8f8f8;
+	--bg-theme-direct-message: #e0e0e0;
 
 	--text-secondary: #555555;
 	--border-theme-primary: rgba(155, 155, 155, 0.2);
@@ -71,7 +71,7 @@
 	--bg-secondary-button-hover: rgba(155, 155, 155, 0.28);
 
 	/* màu contexify */
-	--bg-theme-contexify: rgb(255, 252, 238);
+	--bg-theme-contexify: #E3E5E8;
 	
 	/* màu count page */
 	--bg-count-page: #e6f0ff;

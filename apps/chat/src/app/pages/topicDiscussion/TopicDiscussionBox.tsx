@@ -155,7 +155,7 @@ const TopicDiscussionBox = () => {
 				</div>
 			)}
 			<div className="flex flex-col flex-1">
-				<div className="flex-shrink-0 flex flex-col pb-[26px] px-4 dark:bg-bgPrimary bg-bgLightPrimary h-auto relative">
+				<div className="flex-shrink-0 flex flex-col pb-[26px] px-4 bg-theme-chat   h-auto relative">
 					<MentionReactInput
 						handlePaste={onPastedFiles}
 						onSend={handleSend}

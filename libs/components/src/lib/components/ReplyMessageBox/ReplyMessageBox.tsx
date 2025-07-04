@@ -33,15 +33,15 @@ export function ReplyMessageBox({ channelId, dataReferences, className }: Messag
 	return (
 		<div
 			className={classNames(
-				'flex flex-row items-center justify-between w-full dark:bg-[#2B2D31] bg-bgLightMode p-2 rounded-md text-[14px]',
+				'flex flex-row items-center justify-between w-full bg-theme-contexify p-2 rounded-md text-[14px]',
 				className
 			)}
 		>
-			<div className="dark:text-white text-black">
+			<div className="text-theme-primary">
 				Replying to <span className=" dark:text-[#84ADFF] text-[#3297ff] font-semibold">{nameShowed}</span>
 			</div>
 			<button className="relative" onClick={handleRemoveReply}>
-				<Icons.CircleClose />
+				<Icons.Close />
 			</button>
 		</div>
 	);
