@@ -44,7 +44,7 @@ export const appLoader: CustomLoaderFunction = async ({ dispatch }) => {
 	if (notificationPath) {
 		redirectTo = notificationPath;
 	}
-	dispatch(userStatusActions.getUserStatus());
+	dispatch(userStatusActions.getUserStatus({}));
 	dispatch(appActions.setInitialParams(params));
 	return {
 		pathname,

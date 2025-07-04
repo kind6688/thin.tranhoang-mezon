@@ -1,6 +1,6 @@
 import { load, STORAGE_MY_USER_ID } from '@mezon/mobile-components';
 import { size, ThemeModeBase, useTheme } from '@mezon/mobile-ui';
-import { DMCallActions, selectAllUserClans, selectIsInCall, selectSignalingDataByUserId, useAppDispatch, useAppSelector } from '@mezon/store';
+import { DMCallActions, selectAllUserClans, selectIsInCall, selectSignalingDataByUserId, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
 import { useMezon } from '@mezon/transport';
 import { useNavigation } from '@react-navigation/native';
 import LottieView from 'lottie-react-native';

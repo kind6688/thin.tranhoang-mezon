@@ -57,7 +57,9 @@
         "channel": {
             "title": "Delete Channel {{channelName}}",
             "content": "Are you sure you want to delete this channel?",
-            "confirmText": "Yes"
+            "confirmText": "Yes",
+            "systemChannel": "You can't delete system channel",
+            "error": "Delete channel failed: {{error}}"
         }
     },
     "modalConFirmLeaveThread": {

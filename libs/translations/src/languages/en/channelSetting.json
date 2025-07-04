@@ -80,7 +80,9 @@
         "delete": {
             "content": "Are you sure you want to delete #{{channelName}} ?. This cannot be undone",
             "confirmText": "Delete",
-            "title": "Delete channel"
+            "title": "Delete channel",
+            "systemChannel": "You can't delete system channel",
+            "error": "Delete channel failed: {{error}}"
         },
         "leave": {
             "content": "Are you sure you want to leave #{{channelName}} ?. This cannot be undone",

@@ -142,7 +142,7 @@ export const style = (colors: Attributes, isTabletLandscape: boolean) =>
 			gap: size.s_6,
 			flexDirection: 'row',
 			left: size.s_100,
-			top: isTabletLandscape ? size.s_100 : size.s_80,
+			top: isTabletLandscape ? size.s_100 : size.s_90,
 			minHeight: size.s_40,
 			minWidth: size.s_50,
 			borderRadius: size.s_16,

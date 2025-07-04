@@ -509,7 +509,7 @@ function useThreadMenuBuilder(message: IMessageWithUser, isShowIconThread: boole
 		setIsShowCreateThread(true);
 		setOpenThreadMessageState(true);
 		dispatch(threadsActions.setOpenThreadMessageState(true));
-		setValueThread(message);
+		setValueThread({ ...message, references: [] });
 	}, [dispatch, message, setIsShowCreateThread, setOpenThreadMessageState, setThread, thread, setValueThread]);
 
 	return useMenuBuilderPlugin((builder) => {

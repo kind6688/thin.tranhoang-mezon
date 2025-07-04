@@ -3,15 +3,19 @@ import { useMarkAsRead, usePermissionChecker } from '@mezon/core';
 import { ActionEmitEvent, ENotificationActive, ENotificationChannelId } from '@mezon/mobile-components';
 import { Colors, baseColor, size, useTheme } from '@mezon/mobile-ui';
 import {
+	appActions,
 	channelsActions,
+	fetchSystemMessageByClanId,
 	listChannelRenderAction,
 	notificationSettingActions,
 	selectAllChannelsFavorite,
+	selectClanSystemMessage,
 	selectCurrentClan,
 	selectCurrentUserId,
 	selectNotifiSettingsEntitiesById,
 	threadsActions,
-	useAppDispatch
+	useAppDispatch,
+	useAppSelector
 } from '@mezon/store-mobile';
 import { ChannelThreads, EOverriddenPermission, EPermission, sleep } from '@mezon/utils';
 import Clipboard from '@react-native-clipboard/clipboard';
@@ -20,6 +24,7 @@ import { ChannelType } from 'mezon-js';
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, Text, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { useSelector } from 'react-redux';
 import MezonIconCDN from '../../../../../../../src/app/componentUI/MezonIconCDN';
 import { IconCDN } from '../../../../../../../src/app/constants/icon_cdn';
@@ -46,11 +51,15 @@ export default function ChannelMenu({ channel }: IChannelMenuProps) {
 		[EOverriddenPermission.manageThread, EPermission.manageChannel],
 		channel?.channel_id ?? ''
 	);
+	const currentSystemMessage = useSelector(selectClanSystemMessage);
 
 	useEffect(() => {
 		dispatch(notificationSettingActions.getNotificationSetting({ channelId: channel?.channel_id }));
+		dispatch(fetchSystemMessageByClanId({ clanId: channel?.clan_id }));
 	}, []);
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(channel?.channel_id));
+
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, channel?.channel_id || ''));
+
 	const currentUserId = useSelector(selectCurrentUserId);
 
 	const isStreamOrVoiceChannel = channel?.type === ChannelType.CHANNEL_TYPE_STREAMING || channel?.type === ChannelType.CHANNEL_TYPE_MEZON_VOICE;
@@ -367,10 +376,21 @@ export default function ChannelMenu({ channel }: IChannelMenuProps) {
 		}
 	];
 
-	const handleConfirmDeleteChannel = async () => {
-		await dispatch(channelsActions.deleteChannel({ channelId: channel?.channel_id || '', clanId: channel?.clan_id || '' }));
-		DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
-	};
+	const handleConfirmDeleteChannel = useCallback(async () => {
+		try {
+			DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
+			dispatch(appActions.setLoadingMainMobile(true));
+			if (channel?.channel_id === currentSystemMessage?.channel_id) {
+				Toast.show({ type: 'error', text1: t('modalConfirm.channel.systemChannel') });
+			} else {
+				await dispatch(channelsActions.deleteChannel({ channelId: channel?.channel_id || '', clanId: channel?.clan_id || '' }));
+			}
+		} catch (error) {
+			Toast.show({ type: 'error', text1: t('modalConfirm.channel.error', { error }) });
+		} finally {
+			dispatch(appActions.setLoadingMainMobile(false));
+		}
+	}, [currentSystemMessage?.channel_id, channel?.channel_id, channel?.clan_id]);
 
 	const handleConfirmLeaveThread = useCallback(async () => {
 		await dispatch(

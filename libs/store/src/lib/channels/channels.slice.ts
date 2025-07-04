@@ -36,9 +36,8 @@ import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, s
 import { FetchCategoriesPayload, categoriesActions } from '../categories/categories.slice';
 import { userChannelsActions } from '../channelmembers/AllUsersChannelByAddChannel.slice';
 import { channelMembersActions } from '../channelmembers/channel.members';
-import { MezonValueContext, ensureSession, ensureSocket, getMezonCtx } from '../helpers';
+import { MezonValueContext, ensureSession, ensureSocket, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { messagesActions } from '../messages/messages.slice';
-import { notifiReactMessageActions } from '../notificationSetting/notificationReactMessage.slice';
 import { selectEntiteschannelCategorySetting } from '../notificationSetting/notificationSettingCategory.slice';
 import { notificationSettingActions } from '../notificationSetting/notificationSettingChannel.slice';
 import { overriddenPoliciesActions } from '../policies/overriddenPolicies.slice';
@@ -208,7 +207,20 @@ export const fetchChannelsCached = async (
 		};
 	}
 
-	const response = await ensuredMezon.client.listChannelDescs(ensuredMezon.session, limit, state, '', clanId, channelType);
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListChannelDescs',
+			list_channel_req: {
+				limit,
+				state,
+				channel_type: channelType,
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.listChannelDescs(ensuredMezon.session, limit, state, '', clanId, channelType),
+		'channel_desc_list'
+	);
 
 	markApiFirstCalled(apiKey);
 
@@ -227,7 +239,7 @@ export const fetchListFavoriteChannelCached = async (getState: () => RootState, 
 
 	const shouldForceCall = shouldForceApiCall(apiKey, clanData?.favoriteChannelsCache, noCache);
 
-	if (!shouldForceCall && clanData?.favoriteChannels?.length > 0) {
+	if (!shouldForceCall) {
 		return {
 			channel_ids: clanData.favoriteChannels,
 			fromCache: true,
@@ -235,7 +247,17 @@ export const fetchListFavoriteChannelCached = async (getState: () => RootState, 
 		};
 	}
 
-	const response = await ensuredMezon.client.getListFavoriteChannel(ensuredMezon.session, clanId);
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'GetListFavoriteChannel',
+			favorite_channel_req: {
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.getListFavoriteChannel(ensuredMezon.session, clanId),
+		'favorite_channel_list'
+	);
 
 	markApiFirstCalled(apiKey);
 
@@ -254,14 +276,24 @@ export const fetchAppChannelCached = async (getState: () => RootState, ensuredMe
 
 	const shouldForceCall = shouldForceApiCall(apiKey, clanData?.appChannelsCache, noCache);
 
-	if (!shouldForceCall && Object.keys(clanData?.appChannelsList || {}).length > 0) {
+	if (!shouldForceCall) {
 		return {
 			channel_apps: Object.values(clanData.appChannelsList),
 			fromCache: true
 		};
 	}
 
-	const response = await ensuredMezon.client.listChannelApps(ensuredMezon.session, clanId);
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListChannelApps',
+			list_apps_req: {
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.listChannelApps(ensuredMezon.session, clanId),
+		'channel_apps_list'
+	);
 
 	markApiFirstCalled(apiKey);
 
@@ -302,7 +334,7 @@ export const joinChannel = createAsyncThunk(
 			thunkAPI.dispatch(channelsActions.setIdChannelSelected({ clanId, channelId }));
 			thunkAPI.dispatch(channelsActions.setCurrentChannelId({ clanId, channelId }));
 			thunkAPI.dispatch(notificationSettingActions.getNotificationSetting({ channelId }));
-			thunkAPI.dispatch(notifiReactMessageActions.getNotifiReactMessage({ channelId }));
+			// thunkAPI.dispatch(notifiReactMessageActions.getNotifiReactMessage({ channelId }));
 			thunkAPI.dispatch(overriddenPoliciesActions.fetchMaxChannelPermission({ clanId: clanId ?? '', channelId: channelId }));
 
 			const state = thunkAPI.getState() as RootState;
@@ -530,7 +562,7 @@ export const fetchListFavoriteChannel = createAsyncThunk('channels/favorite', as
 
 		const response = await fetchListFavoriteChannelCached(thunkAPI.getState as () => RootState, mezon, clanId, noCache);
 
-		if (Date.now() - response.time > 100) {
+		if (response.fromCache) {
 			return {
 				fromCache: true
 			};
@@ -598,7 +630,6 @@ export const addThreadToChannels = createAsyncThunk(
 	'channels/addThreadToChannels',
 	async ({ clanId, channelId }: { clanId: string; channelId: string }, thunkAPI) => {
 		const channelData = selectChannelByIdAndClanId(thunkAPI.getState() as RootState, clanId, channelId);
-
 		if (channelId && !channelData) {
 			const data = await thunkAPI
 				.dispatch(
@@ -609,17 +640,18 @@ export const addThreadToChannels = createAsyncThunk(
 					})
 				)
 				.unwrap();
-			if (data?.length > 0) {
+
+			if (data?.threads?.length > 0) {
 				thunkAPI.dispatch(
 					channelsActions.upsertOne({
 						clanId: clanId,
-						channel: { ...data[0], active: 1 } as ChannelsEntity
+						channel: { ...data.threads[0], active: 1 } as ChannelsEntity
 					})
 				);
 				thunkAPI.dispatch(
 					listChannelRenderAction.addThreadToListRender({
 						clanId: clanId,
-						channel: { ...data[0], active: 1 } as ChannelsEntity
+						channel: { ...data.threads[0], active: 1 } as ChannelsEntity
 					})
 				);
 			}
@@ -707,13 +739,13 @@ export const fetchChannels = createAsyncThunk(
 						})
 					)
 					.unwrap();
-				if (data?.length > 0) {
-					response.channeldesc.push({ ...data[0], active: 1 } as ChannelsEntity);
+				if (data?.threads?.length > 0) {
+					response.channeldesc.push({ ...data.threads[0], active: 1 } as ChannelsEntity);
 				}
 			}
 
 			const listChannelRender = selectListChannelRenderByClanId(thunkAPI.getState(), clanId);
-			if (listChannelRender && Date.now() - response.time > 1000) {
+			if (listChannelRender && response.fromCache) {
 				return {
 					channels: [],
 					clanId: clanId,
@@ -1338,29 +1370,6 @@ export const channelsSlice = createSlice({
 				state.showScrollDownButton = {};
 			}
 			state.showScrollDownButton[channelId] = isVisible;
-		},
-		updateChannelsCache: (state, action: PayloadAction<{ clanId: string }>) => {
-			const { clanId } = action.payload;
-			if (!state.byClans[clanId]) {
-				state.byClans[clanId] = getInitialClanState();
-			}
-			state.byClans[clanId].channelsCache = createCacheMetadata(LIST_CHANNEL_CACHED_TIME);
-		},
-
-		updateFavoriteChannelsCache: (state, action: PayloadAction<{ clanId: string }>) => {
-			const { clanId } = action.payload;
-			if (!state.byClans[clanId]) {
-				state.byClans[clanId] = getInitialClanState();
-			}
-			state.byClans[clanId].favoriteChannelsCache = createCacheMetadata(LIST_CHANNEL_CACHED_TIME);
-		},
-
-		updateAppChannelsCache: (state, action: PayloadAction<{ clanId: string }>) => {
-			const { clanId } = action.payload;
-			if (!state.byClans[clanId]) {
-				state.byClans[clanId] = getInitialClanState();
-			}
-			state.byClans[clanId].appChannelsCache = createCacheMetadata(LIST_CHANNEL_CACHED_TIME);
 		}
 	},
 	extraReducers: (builder) => {

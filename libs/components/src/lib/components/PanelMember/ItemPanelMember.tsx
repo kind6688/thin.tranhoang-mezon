@@ -1,15 +1,10 @@
-import { Icons } from '@mezon/ui';
-import { Checkbox, Radio } from 'flowbite-react';
-
 type ItemPanelMemberProps = {
 	children: string;
-	dropdown?: boolean;
-	type?: 'radio' | 'checkbox' | 'none';
 	danger?: boolean;
 	onClick?: (e: any) => void;
 };
 
-const ItemPanelMember = ({ children, dropdown, type, danger, onClick }: ItemPanelMemberProps) => {
+const ItemPanelMember = ({ children, danger, onClick }: ItemPanelMemberProps) => {
 	return (
 		<button onClick={onClick} className="flex items-center w-full justify-between rounded-sm hover:bg-bgSelectItem hover:[&>*]:text-[#fff] pr-2">
 			<li
@@ -17,9 +12,6 @@ const ItemPanelMember = ({ children, dropdown, type, danger, onClick }: ItemPane
 			>
 				{children}
 			</li>
-			{dropdown && <Icons.RightIcon defaultFill="#fff" />}
-			{type === 'checkbox' && <Checkbox id="accept" defaultChecked />}
-			{type === 'radio' && <Radio className="" value="change here" />}
 		</button>
 	);
 };

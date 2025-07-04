@@ -1,4 +1,4 @@
-import { Icons } from '@mezon/ui';
+import { ButtonLoading } from '@mezon/ui';
 
 type ModalSaveChangesProps = {
 	onSave: () => void;
@@ -7,9 +7,8 @@ type ModalSaveChangesProps = {
 };
 
 const ModalSaveChanges = ({ onSave, onReset, isLoading }: ModalSaveChangesProps) => {
-	const handleSaveChanges = (e: React.MouseEvent<HTMLButtonElement, MouseEvent>) => {
-		e.currentTarget.disabled = true;
-		onSave();
+	const handleSaveChanges = async () => {
+		await onSave();
 	};
 	return (
 		<div
@@ -22,9 +21,11 @@ const ModalSaveChanges = ({ onSave, onReset, isLoading }: ModalSaveChangesProps)
 					<button onClick={onReset} className="rounded px-4 py-1.5 hover:underline">
 						Reset
 					</button>
-					<button onClick={handleSaveChanges} className="ml-auto bg-blue-600 rounded-[4px] px-4 py-1.5 text-nowrap text-white w-28">
-						{isLoading ? <Icons.IconLoadingTyping bgFill="mx-auto" iconFill={'fill-white'} /> : 'Save Changes'}
-					</button>
+					<ButtonLoading
+						label="Save Changes"
+						onClick={handleSaveChanges}
+						className="ml-auto bg-blue-600 rounded-[4px] px-4 py-1.5 text-nowrap text-white w-28"
+					/>
 				</div>
 			</div>
 		</div>

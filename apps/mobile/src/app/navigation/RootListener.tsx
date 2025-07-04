@@ -1,7 +1,6 @@
 /* eslint-disable no-console */
 import {
 	accountActions,
-	acitvitiesActions,
 	appActions,
 	authActions,
 	channelsActions,
@@ -38,13 +37,16 @@ import {
 	STORAGE_CLAN_ID,
 	STORAGE_IS_DISABLE_LOAD_BACKGROUND,
 	STORAGE_MY_USER_ID,
+	STORAGE_SESSION_KEY,
 	load,
 	save,
 	setCurrentClanLoader
 } from '@mezon/mobile-components';
+import { useMezon } from '@mezon/transport';
 import analytics from '@react-native-firebase/analytics';
 import { ChannelType, Session } from 'mezon-js';
 import { AppState, DeviceEventEmitter, Platform, View } from 'react-native';
+import { waitForSocketConnection } from '../../../../chat/src/app/loaders/socketUtils';
 import { getVoIPToken, handleFCMToken } from '../utils/pushNotificationHelpers';
 
 const MAX_RETRIES_SESSION = 10;
@@ -54,6 +56,7 @@ const RootListener = () => {
 	const dispatch = useAppDispatch();
 	const hasInternet = useSelector(selectHasInternetMobile);
 	const appStateRef = useRef(AppState.currentState);
+	const { clientRef } = useMezon();
 
 	useEffect(() => {
 		if (isLoggedIn && hasInternet) {
@@ -176,7 +179,35 @@ const RootListener = () => {
 		appStateRef.current = nextAppState;
 	}, []);
 
+	const getSessionCacheKey = async () => {
+		const defaultConfig = {
+			host: process.env.NX_CHAT_APP_API_HOST as string,
+			port: process.env.NX_CHAT_APP_API_PORT as string
+		};
+
+		try {
+			const storedConfig = await load(STORAGE_SESSION_KEY);
+			if (!storedConfig) return defaultConfig;
+
+			const parsedConfig = JSON.parse(storedConfig);
+			const isCustomHost = parsedConfig.host && parsedConfig.port && parsedConfig.host !== process.env.NX_CHAT_APP_API_GW_HOST;
+
+			if (isCustomHost) {
+				return parsedConfig;
+			}
+
+			return defaultConfig;
+		} catch (e) {
+			return defaultConfig;
+		}
+	};
+
 	const authLoader = useCallback(async () => {
+		const configSession = await getSessionCacheKey();
+		if (configSession && clientRef?.current) {
+			clientRef.current.setBasePath(configSession.host as string, configSession.port as string, process.env.NX_CHAT_APP_API_SECURE === 'true');
+		}
+
 		let retries = MAX_RETRIES_SESSION;
 		while (retries > 0) {
 			try {
@@ -196,6 +227,8 @@ const RootListener = () => {
 				const { id = '', username = '' } = profileResponse?.payload?.user || {};
 				if (id) save(STORAGE_MY_USER_ID, id?.toString());
 				await loadFRMConfig(username);
+				// fetch DM list for map badge un-read DM
+				await dispatch(directActions.fetchDirectMessage({ noCache: true }));
 				if ((profileResponse as unknown as IWithError).error) {
 					retries -= 1;
 					if (retries === 0) {
@@ -243,19 +276,19 @@ const RootListener = () => {
 	};
 
 	const mainLoader = useCallback(async () => {
+		dispatch(listChannelsByUserActions.fetchListChannelsByUser({ noCache: true }));
 		try {
 			const promises = [];
+			await dispatch(waitForSocketConnection());
 			promises.push(dispatch(listUsersByUserActions.fetchListUsersByUser({ noCache: true })));
 			promises.push(dispatch(friendsActions.fetchListFriends({ noCache: true })));
 			promises.push(dispatch(clansActions.joinClan({ clanId: '0' })));
 			promises.push(dispatch(directActions.fetchDirectMessage({ noCache: true })));
 			promises.push(dispatch(emojiSuggestionActions.fetchEmoji({ noCache: true })));
 			promises.push(dispatch(settingClanStickerActions.fetchStickerByUserId({ noCache: true })));
-			promises.push(dispatch(listChannelsByUserActions.fetchListChannelsByUser({ noCache: true })));
 			promises.push(dispatch(gifsActions.fetchGifCategories()));
 			promises.push(dispatch(gifsActions.fetchGifCategoryFeatured()));
-			promises.push(dispatch(userStatusActions.getUserStatus()));
-			promises.push(dispatch(acitvitiesActions.listActivities()));
+			promises.push(dispatch(userStatusActions.getUserStatus({})));
 			await Promise.allSettled(promises);
 			return null;
 		} catch (error) {

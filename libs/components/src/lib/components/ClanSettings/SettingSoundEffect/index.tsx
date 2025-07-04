@@ -1,4 +1,13 @@
-import { MediaType, selectAudioByCurrentUser, selectCurrentClanId, selectCurrentUserId, soundEffectActions, useAppDispatch } from '@mezon/store';
+import {
+	MediaType,
+	selectAudioByClanId,
+	selectCurrentClanId,
+	selectCurrentUserId,
+	selectMemberClanByUserId,
+	soundEffectActions,
+	useAppDispatch,
+	useAppSelector
+} from '@mezon/store';
 import { Icons } from '@mezon/ui';
 import { ClanSticker } from 'mezon-js';
 import { useEffect, useState } from 'react';
@@ -26,7 +35,7 @@ const SettingSoundEffect = () => {
 	const currentClanId = useSelector(selectCurrentClanId) || '';
 	const currentUserId = useSelector(selectCurrentUserId) || '';
 
-	const sounds = useSelector(selectAudioByCurrentUser(currentClanId, currentUserId));
+	const sounds = useAppSelector((state) => selectAudioByClanId(state, currentClanId));
 
 	const soundList: SoundType[] = sounds.map((sound) => ({
 		id: sound.id || '',
@@ -117,6 +126,19 @@ const SettingSoundEffect = () => {
 				</div>
 			</div>
 			{showModal && <ModalUploadSound onSuccess={handleUploadSuccess} onClose={() => setShowModal(false)} />}
+		</div>
+	);
+};
+
+const CreatorInfo = ({ creatorId }: { creatorId: string }) => {
+	const creator = useSelector(selectMemberClanByUserId(creatorId));
+
+	if (!creator) return null;
+
+	return (
+		<div className="flex items-center justify-center gap-1 mt-1">
+			<img className="w-4 h-4 rounded-full select-none object-cover" src={creator?.user?.avatar_url ?? process.env.NX_LOGO_MEZON} alt="" />
+			<p className="text-xs dark:text-white text-textPrimaryLight max-w-20 truncate">{creator?.user?.username}</p>
 		</div>
 	);
 };

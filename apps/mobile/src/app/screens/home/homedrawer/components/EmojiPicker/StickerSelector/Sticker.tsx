@@ -1,12 +1,12 @@
 import { ActionEmitEvent, CheckIcon } from '@mezon/mobile-components';
 import { Colors, size, useTheme } from '@mezon/mobile-ui';
-import { emojiRecentActions, selectCurrentClan, useAppSelector } from '@mezon/store-mobile';
-import React, { memo } from 'react';
+import { emojiRecentActions, useAppDispatch } from '@mezon/store-mobile';
+import { FOR_SALE_CATE } from '@mezon/utils';
+import React, { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, Text, TouchableOpacity, View } from 'react-native';
 import FastImage from 'react-native-fast-image';
 import Toast from 'react-native-toast-message';
-import { useDispatch } from 'react-redux';
 import MezonConfirm from '../../../../../../componentUI/MezonConfirm';
 import MezonIconCDN from '../../../../../../componentUI/MezonIconCDN';
 import { IconCDN } from '../../../../../../constants/icon_cdn';
@@ -17,16 +17,25 @@ interface ISticker {
 	stickerList: any[];
 	categoryName: string;
 	onClickSticker: (sticker: any) => void;
+	forSale?: boolean;
 	isAudio?: boolean;
 }
 
-export default memo(function Sticker({ stickerList, categoryName, onClickSticker, isAudio }: ISticker) {
+export default memo(function Sticker({ stickerList, categoryName, onClickSticker, isAudio, forSale }: ISticker) {
 	const { themeValue } = useTheme();
 	const styles = style(themeValue);
-	const stickersListByCategoryName = stickerList.filter((sticker) => sticker.type === categoryName);
-	const currentClan = useAppSelector(selectCurrentClan);
 	const { t } = useTranslation(['token']);
-	const dispatch = useDispatch();
+	const dispatch = useAppDispatch();
+	const stickersListByCategoryName = useMemo(
+		() =>
+			stickerList?.filter((sticker) => {
+				if (categoryName === FOR_SALE_CATE && forSale) {
+					return sticker?.is_for_sale;
+				}
+				return sticker?.clan_name === categoryName && sticker?.source;
+			}),
+		[stickerList, categoryName, forSale]
+	);
 
 	const onBuySticker = async (sticker: any) => {
 		try {
@@ -52,7 +61,7 @@ export default memo(function Sticker({ stickerList, categoryName, onClickSticker
 	};
 
 	const onPress = (sticker: any) => {
-		if (sticker?.forSale && !sticker.url) {
+		if (sticker?.is_for_sale && !sticker?.source) {
 			const data = {
 				children: (
 					<MezonConfirm
@@ -71,33 +80,33 @@ export default memo(function Sticker({ stickerList, categoryName, onClickSticker
 
 	return (
 		<View style={styles.session} key={`${categoryName}_stickers-parent`}>
-			<Text style={styles.sessionTitle}>{categoryName !== 'custom' ? categoryName : currentClan?.clan_name}</Text>
+			<Text style={styles.sessionTitle}>{categoryName}</Text>
 			<View style={styles.sessionContent}>
-				{stickersListByCategoryName.length > 0 &&
+				{stickersListByCategoryName?.length > 0 &&
 					stickersListByCategoryName.map((sticker, index) => (
 						<TouchableOpacity
-							key={`${index}_sticker`}
+							key={`${index}_${sticker?.clan_name}_sticker`}
 							onPress={() => onPress(sticker)}
 							style={isAudio ? styles.audioContent : styles.content}
 						>
 							{isAudio ? (
 								<>
-									<RenderAudioItem audioURL={sticker?.url} />
+									<RenderAudioItem audioURL={sticker?.source} />
 									<Text style={styles.soundName} numberOfLines={1}>
-										{sticker?.name}
+										{sticker?.shortname}
 									</Text>
 								</>
 							) : (
 								<FastImage
 									source={{
-										uri: sticker.url ? sticker.url : `${process.env.NX_BASE_IMG_URL}/stickers/` + sticker.id + `.webp`,
+										uri: sticker?.source ? sticker?.source : `${process.env.NX_BASE_IMG_URL}/stickers/` + sticker?.id + `.webp`,
 										cache: FastImage.cacheControl.immutable,
 										priority: FastImage.priority.high
 									}}
 									style={{ height: '100%', width: '100%' }}
 								/>
 							)}
-							{sticker?.forSale && !sticker.url && (
+							{sticker?.is_for_sale && !sticker?.source && (
 								<View style={styles.wrapperIconLocked}>
 									<MezonIconCDN icon={IconCDN.lockIcon} color={'#e1e1e1'} width={size.s_30} height={size.s_30} />
 								</View>

@@ -2,12 +2,15 @@ import { channelsActions, directActions } from '@mezon/store';
 import { notificationService } from '@mezon/utils';
 import { ShouldRevalidateFunction } from 'react-router-dom';
 import { CustomLoaderFunction } from './appLoader';
+import { waitForSocketConnection } from './socketUtils';
 
 export const directMessageLoader: CustomLoaderFunction = async ({ params, dispatch }) => {
 	const { directId, type } = params;
 	if (!directId) {
 		throw new Error('DirectMessage ID null');
 	}
+
+	await dispatch(waitForSocketConnection());
 
 	await dispatch(
 		directActions.joinDirectMessage({

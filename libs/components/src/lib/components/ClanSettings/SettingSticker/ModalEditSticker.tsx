@@ -1,8 +1,9 @@
 import { useEscapeKeyClose } from '@mezon/core';
 import { createSticker, emojiSuggestionActions, selectCurrentClanId, updateSticker, useAppDispatch } from '@mezon/store';
 import { handleUploadEmoticon, useMezon } from '@mezon/transport';
-import { Button, Checkbox, Icons, InputField } from '@mezon/ui';
-import { LIMIT_SIZE_UPLOAD_IMG, resizeFileImage } from '@mezon/utils';
+
+import { Button, ButtonLoading, Checkbox, Icons, InputField } from '@mezon/ui';
+import { LIMIT_SIZE_UPLOAD_IMG, resizeFileImage, sanitizeUrlSecure } from '@mezon/utils';
 import { Snowflake } from '@theinternetfolks/snowflake';
 import { ClanEmoji, ClanSticker } from 'mezon-js';
 import { ApiClanStickerAddRequest, MezonUpdateClanEmojiByIdBody } from 'mezon-js/api.gen';
@@ -101,7 +102,7 @@ const ModalSticker = ({ graphic, handleCloseModal, type }: ModalEditStickerProps
 			handleCloseModal();
 			return;
 		}
-		handleCreateSticker();
+		await handleCreateSticker();
 	};
 
 	const handleCreateSticker = async () => {
@@ -143,7 +144,7 @@ const ModalSticker = ({ graphic, handleCloseModal, type }: ModalEditStickerProps
 		};
 		if (isForSale) {
 			const idPreview = Snowflake.generate();
-			const fileBlur = await createBlurredImageFile(resizeFile);
+			const fileBlur = await createBlurredWatermarkedImageFile(resizeFile, 'SOLD', 2);
 			const pathPreview = (isSticker ? 'stickers/' : 'emojis/') + idPreview + '.webp';
 			await handleUploadEmoticon(client, session, pathPreview, fileBlur as File);
 			request.id = idPreview;
@@ -184,7 +185,7 @@ const ModalSticker = ({ graphic, handleCloseModal, type }: ModalEditStickerProps
 
 	const isForSaleRef = useRef<HTMLInputElement | null>(null);
 
-	function createBlurredImageFile(originalFile: File, blurAmount = 7) {
+	function createBlurredWatermarkedImageFile(originalFile: File, watermarkText = 'SOLD', blurAmount = 2) {
 		return new Promise((resolve, reject) => {
 			const img = new Image();
 			img.src = URL.createObjectURL(originalFile);
@@ -201,10 +202,25 @@ const ModalSticker = ({ graphic, handleCloseModal, type }: ModalEditStickerProps
 				ctx.filter = `blur(${blurAmount}px)`;
 				ctx.drawImage(img, 0, 0);
 
+				ctx.filter = 'none';
+				const fontSize = Math.floor(canvas.width / 2);
+				ctx.font = `bold ${fontSize}px sans-serif`;
+				ctx.fillStyle = 'rgba(128, 128, 128, 0.35)';
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+
+				ctx.save();
+				ctx.translate(canvas.width / 2, canvas.height / 2);
+				ctx.rotate((45 * Math.PI) / 180);
+
+				ctx.fillText(watermarkText, 0, 0);
+
+				ctx.restore();
+
 				canvas.toBlob((blob) => {
 					if (blob) {
-						const newFile = new File([blob], 'blurred-image.png', { type: 'image/png' });
-						resolve(newFile); // trả về file có thể dùng tiếp
+						const newFile = new File([blob], 'blurred-watermarked.png', { type: 'image/png' });
+						resolve(newFile);
 					} else {
 						reject(new Error('Không thể chuyển canvas thành file.'));
 					}
@@ -285,24 +301,17 @@ const ModalSticker = ({ graphic, handleCloseModal, type }: ModalEditStickerProps
 						</div>
 					</div>
 				</div>
-				<div className={`absolute w-full h-[54px] bottom-0 flex items-end justify-end select-none gap-2`}>
+				<div className={`absolute w-full h-[54px] bottom-0 flex items-center justify-end select-none gap-2`}>
 					<div className="flex items-center flex-1 h-full gap-2">
 						<Checkbox ref={isForSaleRef} id="sale_item" className="accent-blue-600 w-4 h-4" />
 						<label htmlFor="sale_item" className="">
 							This is for sale
 						</label>
 					</div>
-					<Button
-						label="Never Mind"
-						className="rounded border-theme-primary px-4 py-1.5 hover:underline hover:bg-transparent bg-transparent"
-						onClick={handleCloseModal}
-					/>
-					<Button
-						label="Save Changes"
-						className={`bg-blue-600 rounded-[4px] px-4 py-1.5 text-nowrap text-white`}
-						disabled={validateSaveChange}
-						onClick={onSaveChange}
-					/>
+					<Button className="px-2 py-1 border-none hover:underline hover:bg-transparent bg-transparent" onClick={handleCloseModal}>
+						Never Mind
+					</Button>
+					<ButtonLoading className="px-2 py-1 h-9 w-32" label="Save Changes" disabled={validateSaveChange} onClick={onSaveChange} />
 				</div>
 			</div>
 
@@ -315,9 +324,15 @@ const ModalSticker = ({ graphic, handleCloseModal, type }: ModalEditStickerProps
 export default ModalSticker;
 
 const PreviewStickerBox = ({ preview }: { preview: string }) => {
+	const sanitizedPreview = sanitizeUrlSecure(preview, {
+		allowedProtocols: ['https:', 'http:', 'data:', 'blob:'],
+		allowedDomains: ['cdn.mezon.ai', 'tenor.com'],
+		maxLength: 2048
+	});
+
 	return (
 		<div className={'m-auto absolute w-40 aspect-square overflow-hidden flex items-center justify-center'}>
-			<img className="h-full w-auto object-cover" src={preview} />
+			<img className="h-full w-auto object-cover" alt="sticker" src={sanitizedPreview} />
 		</div>
 	);
 };

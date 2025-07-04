@@ -47,10 +47,9 @@ function ClanHeader({ name, type }: ClanHeaderProps) {
 	const currentChannelId = useSelector(selectCurrentVoiceChannelId);
 	const currentClan = useSelector(selectCurrentClan);
 	const navigate = useNavigate();
-	const [openSearchModal, closeSearchModal] = useModal(() => <SearchModal onClose={closeSearchModal} open={true} />);
+	const [openSearchModal, closeSearchModal] = useModal(() => <SearchModal onClose={closeSearchModal} />);
 
 	const [openCreateCate, setOpenCreateCate] = useState(false);
-	const [openServerSettings, setOpenServerSettings] = useState(false);
 	const [isShowModalPanelClan, setIsShowModalPanelClan] = useState<boolean>(false);
 	const hasChildModal = useSelector(hasGrandchildModal);
 	const hasChildModalRef = useRef(false);
@@ -198,8 +197,7 @@ function ClanHeader({ name, type }: ClanHeaderProps) {
 					buttonName="Leave Clan"
 				/>
 			)}
-
-			<ModalCreateCategory openCreateCate={openCreateCate} onClose={onClose} onCreateCategory={handleCreateCate} />
+			{openCreateCate && <ModalCreateCategory onClose={onClose} onCreateCategory={handleCreateCate} />}
 			<InviteClanModal />
 		</>
 	);

@@ -1,7 +1,6 @@
 import { PlayIcon } from '@mezon/mobile-components';
 import { baseColor, size, useTheme, verticalScale } from '@mezon/mobile-ui';
-import { useAppSelector } from '@mezon/store';
-import { referencesActions, selectAttachmentByChannelId, useAppDispatch } from '@mezon/store-mobile';
+import { referencesActions, selectAttachmentByChannelId, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
 import React, { memo } from 'react';
 import { Image, ScrollView, TouchableOpacity, View } from 'react-native';
 import MezonIconCDN from '../../../../../componentUI/MezonIconCDN';

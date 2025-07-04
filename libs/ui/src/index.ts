@@ -22,6 +22,7 @@ export * from './lib/LogOutButton';
 export * from './lib/Pagination';
 export * from './lib/useMezonUi';
 
+export { default as ButtonLoading } from './lib/Button/ButtonLoading';
 export { default as FormError } from './lib/Login/FormError';
 export { default as Input } from './lib/Login/Input';
 export { default as PasswordInput } from './lib/Login/PasswordInput';

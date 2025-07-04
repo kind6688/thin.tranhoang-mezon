@@ -49,14 +49,22 @@ export const style = (colors: Attributes) =>
 			height: size.s_40,
 			color: colors.text
 		},
-		button: {
+		wrapperButton: {
 			position: 'absolute',
+			justifyContent: 'center',
+			alignItems: 'center',
+			backgroundColor: colors.primary,
+			width: '100%',
+			paddingTop: size.s_10,
+			bottom: 0,
+			paddingBottom: size.s_30
+		},
+		button: {
 			justifyContent: 'center',
 			alignItems: 'center',
 			backgroundColor: '#5e65ee',
 			height: size.s_50,
 			width: '90%',
-			bottom: size.s_30,
 			marginHorizontal: size.s_20,
 			borderRadius: size.s_14
 		},

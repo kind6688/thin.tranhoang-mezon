@@ -44,56 +44,58 @@ export const MyQRCode = () => {
 	}, [genQRCode]);
 
 	return (
-		<LinearGradient start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} colors={[themeValue.primary, themeValue.secondaryLight]} style={styles.card}>
-			<View
-				style={{
-					flexDirection: 'row',
-					alignItems: 'center',
-					paddingBottom: size.s_14,
-					gap: size.s_14,
-					borderBottomColor: themeValue.border,
-					borderBottomWidth: 1
-				}}
-			>
-				<FastImage
-					source={{
-						uri: createImgproxyUrl(userProfile?.user?.avatar_url ?? '', { width: 200, height: 200, resizeType: 'fit' })
-					}}
-					style={styles.avatar}
-				/>
-				<View>
-					<Text style={styles.nameProfile}>{userProfile?.user?.username || userProfile?.user?.display_name}</Text>
-					<Text style={styles.tokenProfile}>
-						{t('token')} {formatMoney(Number(tokenInWallet || 0))}₫
-					</Text>
-				</View>
-			</View>
-			{!urlQRCode && (
-				<View style={{ height: size.s_100 * 2.5, alignItems: 'center', justifyContent: 'center' }}>
-					<Grid color={themeValue.text} size={size.s_50} />
-				</View>
-			)}
-			{isTabletLandscape ? (
+		<View style={styles.container}>
+			<LinearGradient start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} colors={[themeValue.primary, themeValue.secondaryLight]} style={styles.card}>
 				<View
 					style={{
-						height: size.s_100 * 3.6,
-						width: size.s_100 * 3.6,
-						backgroundColor: 'white',
-						alignSelf: 'center',
-						justifyContent: 'center',
-						marginVertical: size.s_40
+						flexDirection: 'row',
+						alignItems: 'center',
+						paddingBottom: size.s_14,
+						gap: size.s_14,
+						borderBottomColor: themeValue.border,
+						borderBottomWidth: 1
 					}}
 				>
-					<FastImage source={{ uri: urlQRCode || '' }} style={styles.imageQR} />
+					<FastImage
+						source={{
+							uri: createImgproxyUrl(userProfile?.user?.avatar_url ?? '', { width: 200, height: 200, resizeType: 'fit' })
+						}}
+						style={styles.avatar}
+					/>
+					<View>
+						<Text style={styles.nameProfile}>{userProfile?.user?.username || userProfile?.user?.display_name}</Text>
+						<Text style={styles.tokenProfile}>
+							{t('token')} {formatMoney(Number(tokenInWallet || 0))}₫
+						</Text>
+					</View>
 				</View>
-			) : (
-				<FastImage source={{ uri: urlQRCode || '' }} style={styles.imageQR} />
-			)}
-			<View
-				style={{
-					height: size.s_50
-				}}
-			/>
-		</LinearGradient>
+				{!urlQRCode && (
+					<View style={{ height: size.s_100 * 2.5, alignItems: 'center', justifyContent: 'center' }}>
+						<Grid color={themeValue.text} size={size.s_50} />
+					</View>
+				)}
+				{isTabletLandscape ? (
+					<View
+						style={{
+							height: size.s_100 * 3.6,
+							width: size.s_100 * 3.6,
+							backgroundColor: 'white',
+							alignSelf: 'center',
+							justifyContent: 'center',
+							marginVertical: size.s_40
+						}}
+					>
+						<FastImage source={{ uri: urlQRCode || '' }} style={styles.imageQR} />
+					</View>
+				) : (
+					<FastImage source={{ uri: urlQRCode || '' }} style={styles.imageQR} />
+				)}
+				<View
+					style={{
+						height: size.s_50
+					}}
+				/>
+			</LinearGradient>
+		</View>
 	);
 };

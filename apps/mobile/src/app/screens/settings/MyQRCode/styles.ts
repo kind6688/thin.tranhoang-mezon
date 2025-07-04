@@ -5,7 +5,7 @@ export const style = (colors: Attributes) =>
 	StyleSheet.create({
 		container: {
 			flex: 1,
-			backgroundColor: colors.secondary
+			backgroundColor: colors.primary
 		},
 		card: {
 			marginTop: size.s_30,

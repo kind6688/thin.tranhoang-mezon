@@ -1,5 +1,5 @@
 import { size, useTheme } from '@mezon/mobile-ui';
-import { AttachmentEntity } from '@mezon/store';
+import { AttachmentEntity } from '@mezon/store-mobile';
 import { createImgproxyUrl } from '@mezon/utils';
 import React, { memo, useEffect, useRef } from 'react';
 import { Animated, TouchableOpacity, View } from 'react-native';

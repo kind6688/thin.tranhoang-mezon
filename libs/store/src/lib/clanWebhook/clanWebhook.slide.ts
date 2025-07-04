@@ -1,10 +1,11 @@
 import { captureSentryError } from '@mezon/logger';
 import { LoadingStatus } from '@mezon/utils';
 import { createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
-import memoizee from 'memoizee';
 import { ApiClanWebhook, ApiGenerateClanWebhookRequest, MezonUpdateClanWebhookByIdBody } from 'mezon-js/api.gen';
 import { toast } from 'react-toastify';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
+import { RootState } from '../store';
 
 export const INTEGRATION_CLAN_WEBHOOK = 'integrationClanWebhook';
 
@@ -12,6 +13,13 @@ export interface IClanWebHookState {
 	loadingStatus: LoadingStatus;
 	errors?: string | null;
 	clanWebhookList?: Array<ApiClanWebhook>;
+	byClan: Record<
+		string,
+		{
+			webhooks?: Array<ApiClanWebhook>;
+			cache?: CacheMetadata;
+		}
+	>;
 }
 
 export interface IFetchClanWebhooksArg {
@@ -22,27 +30,51 @@ export interface IFetchClanWebhooksArg {
 export const initialClanWebhookState: IClanWebHookState = {
 	loadingStatus: 'not loaded',
 	errors: null,
-	clanWebhookList: []
+	clanWebhookList: [],
+	byClan: {}
 };
 
-const LIST_CLAN_WEBHOOK_CACHED_TIME = 1000 * 60 * 60;
-
-const fetchClanWebhooksCached = memoizee((mezon: MezonValueContext, clanId: string) => mezon.client.listClanWebhook(mezon.session, clanId), {
-	promise: true,
-	maxAge: LIST_CLAN_WEBHOOK_CACHED_TIME,
-	normalizer: (args) => {
-		return args[1] + args[0].session.username;
-	}
+const getInitialClanState = () => ({
+	webhooks: []
 });
+
+export const fetchClanWebhooksCached = async (getState: () => RootState, mezon: MezonValueContext, clanId: string, noCache = false) => {
+	const currentState = getState();
+	const clanWebhookState = currentState[INTEGRATION_CLAN_WEBHOOK];
+	const clanData = clanWebhookState.byClan[clanId] || getInitialClanState();
+
+	const apiKey = createApiKey('fetchClanWebhooks', clanId, mezon.session.username || '');
+
+	const shouldForceCall = shouldForceApiCall(apiKey, clanData.cache, noCache);
+
+	if (!shouldForceCall && clanData.webhooks?.length) {
+		return {
+			list_clan_webhooks: clanData.webhooks,
+			fromCache: true,
+			time: clanData.cache?.lastFetched || Date.now()
+		};
+	}
+
+	const response = await mezon.client.listClanWebhook(mezon.session, clanId);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 export const fetchClanWebhooks = createAsyncThunk('integration/fetchClanWebhooks', async ({ clanId, noCache }: IFetchClanWebhooksArg, thunkAPI) => {
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
-		if (noCache) {
-			fetchClanWebhooksCached.delete(mezon, clanId);
-		}
-		const response = await fetchClanWebhooksCached(mezon, clanId);
-		return response.list_clan_webhooks;
+		const response = await fetchClanWebhooksCached(thunkAPI.getState as () => RootState, mezon, clanId, Boolean(noCache));
+		return {
+			clanId,
+			webhooks: response.list_clan_webhooks,
+			fromCache: response.fromCache
+		};
 	} catch (error) {
 		captureSentryError(error, 'integration/fetchClanWebhooks');
 		return thunkAPI.rejectWithValue(error);
@@ -113,8 +145,20 @@ export const integrationClanWebhookSlice = createSlice({
 				state.loadingStatus = 'loading';
 			})
 			.addCase(fetchClanWebhooks.fulfilled, (state, action) => {
+				const { clanId, webhooks, fromCache } = action.payload;
+
 				state.loadingStatus = 'loaded';
-				state.clanWebhookList = action.payload;
+
+				if (!fromCache) {
+					state.clanWebhookList = webhooks;
+
+					if (!state.byClan[clanId]) {
+						state.byClan[clanId] = getInitialClanState();
+					}
+
+					state.byClan[clanId].webhooks = webhooks;
+					state.byClan[clanId].cache = createCacheMetadata();
+				}
 			})
 			.addCase(fetchClanWebhooks.rejected, (state) => {
 				state.loadingStatus = 'error';
@@ -125,4 +169,10 @@ export const integrationClanWebhookSlice = createSlice({
 export const getClanWebHookState = (rootState: { [INTEGRATION_CLAN_WEBHOOK]: IClanWebHookState }): IClanWebHookState =>
 	rootState[INTEGRATION_CLAN_WEBHOOK];
 export const selectAllClanWebhooks = createSelector(getClanWebHookState, (state) => state?.clanWebhookList || []);
+
+export const selectClanWebhooksByClanId = createSelector(
+	[getClanWebHookState, (state: RootState, clanId: string) => clanId],
+	(state, clanId) => state?.byClan[clanId]?.webhooks || []
+);
+
 export const integrationClanWebhookReducer = integrationClanWebhookSlice.reducer;

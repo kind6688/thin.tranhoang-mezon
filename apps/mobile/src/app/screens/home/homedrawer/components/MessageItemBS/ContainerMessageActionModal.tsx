@@ -212,8 +212,7 @@ export const ContainerMessageActionModal = React.memo((props: IReplyBottomSheet)
 			console.error('Failed to give cofffee message', error);
 		}
 	};
-
-	const listPinMessages = useSelector(selectPinMessageByChannelId(message?.channel_id));
+	const listPinMessages = useAppSelector((state) => selectPinMessageByChannelId(state, message?.channel_id as string));
 	const isDM = useMemo(() => {
 		return [ChannelStreamMode.STREAM_MODE_DM, ChannelStreamMode.STREAM_MODE_GROUP].includes(mode);
 	}, [mode]);

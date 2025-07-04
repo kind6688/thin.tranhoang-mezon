@@ -3,6 +3,7 @@ import { useAuth, useCheckOwnerForUser } from '@mezon/core';
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { Colors, Text, size, useTheme } from '@mezon/mobile-ui';
 import {
+	appActions,
 	channelsActions,
 	fetchUserChannels,
 	rolesClanActions,
@@ -10,8 +11,7 @@ import {
 	selectAllUserClans,
 	selectEveryoneRole,
 	selectRolesByChannelId,
-	useAppDispatch,
-	useAppSelector
+	useAppDispatch
 } from '@mezon/store-mobile';
 import { isPublicChannel } from '@mezon/utils';
 import { FlashList } from '@shopify/flash-list';
@@ -20,7 +20,6 @@ import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, TouchableOpacity, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useSelector } from 'react-redux';
-import MezonConfirm from '../../../componentUI/MezonConfirm';
 import MezonIconCDN from '../../../componentUI/MezonIconCDN';
 import MezonSwitch from '../../../componentUI/MezonSwitch';
 import { IconCDN } from '../../../constants/icon_cdn';
@@ -42,7 +41,7 @@ export const BasicView = memo(({ channel }: IBasicViewProps) => {
 	const [isChannelPublic, setIsChannelPublic] = useState<boolean>(isPublicChannel(channel));
 
 	const listOfChannelRole = useSelector(selectRolesByChannelId(channel?.channel_id));
-	const listOfChannelMember = useAppSelector(selectAllUserChannel(channel?.channel_id));
+	const listOfChannelMember = useSelector(selectAllUserChannel(channel?.channel_id));
 
 	useEffect(() => {
 		dispatch(rolesClanActions.fetchRolesClan({ clanId: channel?.clan_id }));
@@ -76,61 +75,53 @@ export const BasicView = memo(({ channel }: IBasicViewProps) => {
 		];
 	}, [availableMemberList, availableRoleList, t]);
 
-	const onPrivateChannelChange = useCallback(
-		(value: boolean) => {
-			setIsChannelPublic(value);
-			const data = {
-				children: (
-					<MezonConfirm
-						onConfirm={updateChannel}
-						title={
-							!value ? t('channelPermission.warningModal.privateChannelTitle') : t('channelPermission.warningModal.publicChannelTitle')
-						}
-						confirmText={t('channelPermission.warningModal.confirm')}
-						content={
-							!value
-								? t('channelPermission.warningModal.privateChannelContent', { channelLabel: channel?.channel_label })
-								: t('channelPermission.warningModal.publicChannelContent', { channelLabel: channel?.channel_label })
-						}
-					/>
-				)
-			};
-			DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: false, data });
-		},
-		[t, channel?.channel_label]
-	);
+	const onPrivateChannelChange = useCallback((value: boolean) => {
+		setIsChannelPublic(!value);
+		updateChannel(!value);
+	}, []);
 
 	const openBottomSheet = () => {
 		bottomSheetRef.current?.present();
 	};
 
-	const updateChannel = useCallback(async () => {
-		DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
+	const updateChannel = useCallback(
+		async (privateChannel: boolean) => {
+			try {
+				DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
+				dispatch(appActions.setLoadingMainMobile(true));
 
-		const response = await dispatch(
-			channelsActions.updateChannelPrivate({
-				channel_id: channel.id,
-				channel_private: isChannelPublic ? 0 : 1,
-				user_ids: [userId],
-				role_ids: []
-			})
-		);
-		const isError = ERequestStatus.Rejected === response?.meta?.requestStatus;
-		if (isError) {
-			setIsChannelPublic(isPublicChannel(channel));
-		}
-		Toast.show({
-			type: 'success',
-			props: {
-				text2: isError ? t('channelPermission.toast.failed') : t('channelPermission.toast.success'),
-				leadingIcon: isError ? (
-					<MezonIconCDN icon={IconCDN.closeIcon} color={Colors.red} />
-				) : (
-					<MezonIconCDN icon={IconCDN.checkmarkLargeIcon} color={Colors.green} />
-				)
+				const response = await dispatch(
+					channelsActions.updateChannelPrivate({
+						channel_id: channel.id,
+						channel_private: privateChannel ? 1 : 0,
+						user_ids: [userId],
+						role_ids: []
+					})
+				);
+				const isError = ERequestStatus.Rejected === response?.meta?.requestStatus;
+				if (isError) {
+					throw new Error();
+				} else {
+					Toast.show({
+						type: 'success',
+						props: {
+							text2: t('channelPermission.toast.success'),
+							leadingIcon: <MezonIconCDN icon={IconCDN.checkmarkLargeIcon} color={Colors.green} />
+						}
+					});
+				}
+			} catch (error) {
+				setIsChannelPublic(isPublicChannel(channel));
+				Toast.show({
+					type: 'error',
+					text1: t('channelPermission.toast.failed')
+				});
+			} finally {
+				dispatch(appActions.setLoadingMainMobile(false));
 			}
-		});
-	}, [isChannelPublic, channel, userId, t]);
+		},
+		[channel, userId, t]
+	);
 
 	const renderWhoCanAccessItem = useCallback(
 		({ item }) => {
@@ -158,7 +149,7 @@ export const BasicView = memo(({ channel }: IBasicViewProps) => {
 	);
 
 	const handlePressChangeChannelPrivate = useCallback(() => {
-		onPrivateChannelChange(!isChannelPublic);
+		onPrivateChannelChange(isChannelPublic);
 	}, [isChannelPublic, onPrivateChannelChange]);
 
 	return (

@@ -2,7 +2,7 @@ import { useAuth } from '@mezon/core';
 import {
 	channelsActions,
 	clansActions,
-	clearAllMemoizedFunctions,
+	clearApiCallTracker,
 	e2eeActions,
 	IUpdateChannelRequest,
 	messagesActions,
@@ -256,7 +256,7 @@ const ModalConfirmPin = ({ onClose, onBack, pin, userProfile }: ModalProps & { p
 			if (userProfile?.encrypt_private_key) {
 				await MessageCrypt.decryptPrivateKeyWithPIN(userProfile?.encrypt_private_key, otpCode, userProfile?.user?.id as string);
 				onClose(true);
-				clearAllMemoizedFunctions();
+				clearApiCallTracker();
 				dispatch(e2eeActions.setHasKey(true));
 				if (currentDmId) {
 					if (!directMessageValue?.e2ee) {

@@ -2,6 +2,7 @@ import { channelsActions, threadsActions, topicsActions } from '@mezon/store';
 import { notificationService } from '@mezon/utils';
 import { ShouldRevalidateFunction } from 'react-router-dom';
 import { CustomLoaderFunction } from './appLoader';
+import { waitForSocketConnection } from './socketUtils';
 
 export const channelLoader: CustomLoaderFunction = async ({ params, request, dispatch }) => {
 	const { channelId, clanId } = params;
@@ -9,6 +10,9 @@ export const channelLoader: CustomLoaderFunction = async ({ params, request, dis
 	if (!channelId || !clanId) {
 		throw new Error('Channel ID null');
 	}
+
+	await dispatch(waitForSocketConnection());
+
 	dispatch(channelsActions.addThreadToChannels({ channelId, clanId }));
 	dispatch(channelsActions.joinChannel({ clanId, channelId, noFetchMembers: false, messageId: messageId || '' }));
 	dispatch(channelsActions.setPreviousChannels({ clanId, channelId }));

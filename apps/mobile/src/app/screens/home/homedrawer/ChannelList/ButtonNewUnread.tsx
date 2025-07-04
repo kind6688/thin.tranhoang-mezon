@@ -1,7 +1,6 @@
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { useTheme } from '@mezon/mobile-ui';
-import { channelsActions, selectAllChannels, selectCurrentClanId, useAppSelector } from '@mezon/store';
-import { useAppDispatch } from '@mezon/store-mobile';
+import { channelsActions, selectAllChannels, selectCurrentClanId, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, Text, TouchableOpacity, View } from 'react-native';

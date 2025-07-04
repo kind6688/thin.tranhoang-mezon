@@ -8,7 +8,8 @@ import {
 	selectDefaultNotificationClan,
 	selectNotifiReactMessage,
 	selectNotifiSettingsEntitiesById,
-	useAppDispatch
+	useAppDispatch,
+	useAppSelector
 } from '@mezon/store-mobile';
 import { ChannelThreads, ENotificationTypes } from '@mezon/utils';
 import React, { useEffect, useState } from 'react';
@@ -51,15 +52,13 @@ export default function NotificationSetting({ channel }: { channel?: ChannelThre
 	const dispatch = useAppDispatch();
 	const currentChannelId = useSelector(selectCurrentChannelId);
 	const [radioBox, setRadioBox] = useState<IOptionsNotification[]>(optionNotifySetting);
-	const [isChecked, setIsChecked] = useState<boolean>(false);
 	const currentClanId = useSelector(selectCurrentClanId);
 	const notifyReactMessage = useSelector(selectNotifiReactMessage);
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(channel?.id || currentChannelId));
-	const defaultNotificationCategory = useSelector(selectDefaultNotificationCategory);
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, channel?.id || currentChannelId || ''));
+	const defaultNotificationCategory = useAppSelector((state) => selectDefaultNotificationCategory(state, channel?.category_id as string));
 	const defaultNotificationClan = useSelector(selectDefaultNotificationClan);
 	const [defaultNotifyName, setDefaultNotifyName] = useState('');
 	useEffect(() => {
-		setIsChecked(notifyReactMessage?.id !== '0');
 		if (!getNotificationChannelSelected?.notification_setting_type) {
 			setRadioBox((prev) => prev.map((item) => (item.id === 0 ? { ...item, isChecked: true } : item)));
 			return;

@@ -14,7 +14,7 @@ type EmbedAnimationProps = {
 	observeIntersectionForLoading?: ObserveFn;
 };
 const BREAK_POINT_RESPONSIVE = 1200;
-const DEFAULT_HEIGH = 126;
+const DEFAULT_HEIGH = 133;
 const DEFAULT_WIDTH = 133;
 const WIDTH_BOX_ANIMATION_SMALL = 80;
 const HEIGH_BOX_ANIMATION_SMALL = (80 / DEFAULT_WIDTH) * DEFAULT_HEIGH;

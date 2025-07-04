@@ -4,13 +4,11 @@ import { createAsyncThunk, createEntityAdapter, createSelector, createSlice, Ent
 import { captureSentryError } from '@mezon/logger';
 import { ClanSticker } from 'mezon-js';
 import { ApiClanStickerAddRequest, MezonUpdateClanStickerByIdBody } from 'mezon-js/api.gen';
-import { ensureSession, getMezonCtx, MezonValueContext } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
+import { ensureSession, fetchDataWithSocketFallback, getMezonCtx, MezonValueContext } from '../helpers';
 import { RootState } from '../store';
 
 export const SETTING_CLAN_STICKER = 'settingSticker';
-
-const STICKER_CLAN_CACHE_TIME = 1000 * 60 * 60;
 
 export enum MediaType {
 	STICKER = 0,
@@ -37,6 +35,7 @@ export interface SettingClanStickerState extends EntityState<ClanSticker, string
 	loadingStatus: LoadingStatus;
 	error?: string | null;
 	hasGrandchildModal: boolean;
+	cache?: CacheMetadata;
 }
 
 export interface UpdateStickerArgs {
@@ -59,30 +58,52 @@ export const initialSettingClanStickerState: SettingClanStickerState = stickerAd
 	hasGrandchildModal: false
 });
 
-export const fetchStickerByUserIdCached = memoizeAndTrack(
-	async (mezon: MezonValueContext) => {
-		const response = await mezon.client.getListStickersByUserId(mezon.session);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: STICKER_CLAN_CACHE_TIME,
-		normalizer: (args) => {
-			return args[0]?.session?.username || '';
-		}
+const { selectAll } = stickerAdapter.getSelectors();
+
+const selectCachedSticker = createSelector([(state: RootState) => state[SETTING_CLAN_STICKER]], (entitiesState) => {
+	return entitiesState ? selectAll(entitiesState) : [];
+});
+
+export const fetchStickerByUserIdCached = async (getState: () => RootState, ensuredMezon: MezonValueContext, noCache = false) => {
+	const state = getState();
+	const stickerData = state[SETTING_CLAN_STICKER];
+	const apiKey = createApiKey('fetchStickerByUserId');
+	const shouldForceCall = shouldForceApiCall(apiKey, stickerData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		const sticker = selectCachedSticker(state);
+		return {
+			stickers: sticker,
+			time: Date.now(),
+			fromCache: true
+		};
 	}
-);
+
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'GetListStickersByUserId'
+		},
+		() => ensuredMezon.client.getListStickersByUserId(ensuredMezon.session),
+		'sticker_list'
+	);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		time: Date.now(),
+		fromCache: false
+	};
+};
 
 export const fetchStickerByUserId = createAsyncThunk(
 	'settingClanSticker/fetchClanSticker',
 	async ({ noCache = false }: { noCache?: boolean }, thunkAPI) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			if (noCache) {
-				fetchStickerByUserIdCached.delete(mezon);
-			}
 
-			const response = await fetchStickerByUserIdCached(mezon);
+			const response = await fetchStickerByUserIdCached(thunkAPI.getState as () => RootState, mezon, noCache);
 
 			if (response) {
 				const stickersWithMediaType = response.stickers || [];
@@ -99,7 +120,10 @@ export const fetchStickerByUserId = createAsyncThunk(
 					};
 				});
 
-				return processedStickers;
+				return {
+					stickers: processedStickers || [],
+					fromCache: !!response?.fromCache
+				};
 			}
 			throw new Error('Emoji list is undefined or null');
 		} catch (error) {
@@ -268,9 +292,11 @@ export const settingClanStickerSlice = createSlice({
 	},
 	extraReducers(builder) {
 		builder
-			.addCase(fetchStickerByUserId.fulfilled, (state: SettingClanStickerState, actions) => {
+			.addCase(fetchStickerByUserId.fulfilled, (state: SettingClanStickerState, actions: any) => {
+				if (!actions?.payload?.fromCache) state.cache = createCacheMetadata();
+
+				if (actions?.payload?.stickers) stickerAdapter.setAll(state, actions?.payload?.stickers);
 				state.loadingStatus = 'loaded';
-				stickerAdapter.setAll(state, actions.payload);
 			})
 			.addCase(fetchStickerByUserId.pending, (state: SettingClanStickerState) => {
 				state.loadingStatus = 'loading';
@@ -290,69 +316,25 @@ export const stickerSettingActions = {
 
 export const getStickerSettingState = (rootState: { [SETTING_CLAN_STICKER]: SettingClanStickerState }): SettingClanStickerState =>
 	rootState[SETTING_CLAN_STICKER];
-const { selectAll, selectEntities, selectById } = stickerAdapter.getSelectors();
+
 export const selectAllStickerSuggestion = createSelector(getStickerSettingState, selectAll);
-export const selectStickerSuggestionEntities = createSelector(getStickerSettingState, selectEntities);
-export const selectOneStickerInfor = (stickerId: string) => createSelector(getStickerSettingState, (state) => selectById(state, stickerId));
 
 export const hasGrandchildModal = createSelector(getStickerSettingState, (state) => state.hasGrandchildModal);
-
-export const selectStickerByClanIdAndMediaType = (clanId: string, mediaType: MediaType) =>
-	createSelector(selectAllStickerSuggestion, (stickers) => {
-		return stickers.filter((sticker) => sticker.clan_id === clanId && (sticker as any).media_type === mediaType);
-	});
-
-export const selectStickerByClanIdSelector = createSelector(
-	[selectAllStickerSuggestion, (_state: RootState, clanId: string) => clanId],
-	(stickers, clanId) => stickers.filter((sticker) => sticker.clan_id === clanId)
-);
-
-export const selectStickerByClanId = (clanId: string) => (state: RootState) =>
-	selectStickerByClanIdSelector(state, clanId);
 
 export const selectStickersByClanIdSelector = createSelector(
 	[selectAllStickerSuggestion, (_state: RootState, clanId: string) => clanId],
 	(stickers, clanId) =>
-		stickers.filter((sticker) =>
-			sticker.clan_id === clanId &&
-			((sticker as any).media_type === MediaType.STICKER || (sticker as any).media_type === undefined)
-		)
-);
-
-export const selectStickersByClanId = (clanId: string) => (state: RootState) =>
-	selectStickersByClanIdSelector(state, clanId);
-
-export const selectAudioByClanIdSelector = createSelector(
-	[selectAllStickerSuggestion, (_state: RootState, clanId: string) => clanId],
-	(stickers, clanId) =>
-		stickers.filter((sticker) => sticker.clan_id === clanId && (sticker as any).media_type === MediaType.AUDIO)
-);
-
-export const selectAudioByClanId = (clanId: string) => (state: RootState) =>
-	selectAudioByClanIdSelector(state, clanId);
-
-export const selectStickersByCurrentUserSelector = createSelector(
-	[selectAllStickerSuggestion, (_state: RootState, clanId: string) => clanId, (_state: RootState, _clanId: string, userId: string) => userId],
-	(stickers, clanId, userId) =>
 		stickers.filter(
 			(sticker) =>
-				sticker.clan_id === clanId &&
-				sticker.creator_id === userId &&
-				((sticker as any).media_type === MediaType.STICKER || (sticker as any).media_type === undefined)
+				sticker.clan_id === clanId && ((sticker as any).media_type === MediaType.STICKER || (sticker as any).media_type === undefined)
 		)
 );
 
-export const selectStickersByCurrentUser = (clanId: string, userId: string) => (state: RootState) =>
-	selectStickersByCurrentUserSelector(state, clanId, userId);
+export const selectStickersByClanId = (clanId: string) => (state: RootState) => selectStickersByClanIdSelector(state, clanId);
 
-export const selectAudioByCurrentUserSelector = createSelector(
-	[selectAllStickerSuggestion, (_state: RootState, clanId: string) => clanId, (_state: RootState, _clanId: string, userId: string) => userId],
-	(stickers, clanId, userId) =>
-		stickers.filter((sticker) => sticker.clan_id === clanId && sticker.creator_id === userId && (sticker as any).media_type === MediaType.AUDIO)
+export const selectAudioByClanId = createSelector([selectAllStickerSuggestion, (_state: RootState, clanId: string) => clanId], (stickers, clanId) =>
+	stickers.filter((sticker) => sticker.clan_id === clanId && (sticker as any).media_type === MediaType.AUDIO)
 );
-
-export const selectAudioByCurrentUser = (clanId: string, userId: string) => (state: RootState) =>
-	selectAudioByCurrentUserSelector(state, clanId, userId);
 
 export const settingStickerReducer = settingClanStickerSlice.reducer;
 export const settingClanStickerActions = { ...settingClanStickerSlice.actions, fetchStickerByUserId };

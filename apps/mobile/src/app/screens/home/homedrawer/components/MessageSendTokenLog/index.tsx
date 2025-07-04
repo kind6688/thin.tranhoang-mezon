@@ -10,7 +10,7 @@ type MessageSendTokenLogProps = {
 	messageContent: string;
 };
 
-const MessageSendTokenLog = memo(({ messageContent }: MessageSendTokenLogProps) => {
+const MessageSendTokenLog = memo(({ messageContent = ' | ' }: MessageSendTokenLogProps) => {
 	const { themeValue } = useTheme();
 	const navigation = useNavigation<any>();
 	const styles = style(themeValue);

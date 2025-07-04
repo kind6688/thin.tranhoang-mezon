@@ -16,22 +16,9 @@ type CategoryListProps = {
 const CategoryList: FC<CategoryListProps> = ({ categoriesWithIcons, selectedCategory }) => {
 	const { themeValue } = useTheme();
 	const styles = style(themeValue);
-	const scrollViewRef = useRef<ScrollView>(null);
-
-	useEffect(() => {
-		if (!scrollViewRef?.current || !selectedCategory || categoriesWithIcons?.length === 0) return;
-		const selectedIndex = categoriesWithIcons?.findIndex((item) => item?.name === selectedCategory);
-		if (selectedIndex !== -1) {
-			scrollViewRef.current.scrollTo({
-				x: selectedIndex * 24,
-				animated: false
-			});
-		}
-	}, [selectedCategory, categoriesWithIcons]);
 
 	return (
 		<ScrollView
-			ref={scrollViewRef}
 			horizontal
 			showsHorizontalScrollIndicator={false}
 			style={styles.wrapperCateContainer}

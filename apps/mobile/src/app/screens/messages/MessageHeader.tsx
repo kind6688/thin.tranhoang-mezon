@@ -1,5 +1,5 @@
 import { baseColor, size, useTheme } from '@mezon/mobile-ui';
-import { selectAllFriends } from '@mezon/store';
+import { selectAllFriends } from '@mezon/store-mobile';
 import { useNavigation } from '@react-navigation/native';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';

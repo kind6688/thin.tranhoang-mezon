@@ -4,7 +4,6 @@ import {
 	fetchSystemMessageByClanId,
 	selectChannelById,
 	selectClanById,
-	selectClanSystemMessage,
 	selectCurrentClanId,
 	selectTheme,
 	useAppDispatch,
@@ -40,15 +39,17 @@ const ModalInvite = (props: ModalParam) => {
 	const currentClanId = useSelector(selectCurrentClanId);
 	const { createLinkInviteUser } = useInvite();
 	const { onClose, channelID, clanId, setShowClanListMenuContext, isInviteExternalCalling = false } = props;
+	const dispatch = useAppDispatch();
 
 	const effectiveClanId = clanId && clanId !== '0' ? clanId : currentClanId;
 
 	const clan = useSelector(selectClanById(effectiveClanId ?? ''));
 
 	const channel = useAppSelector((state) => selectChannelById(state, channelID ?? '')) || {};
-	const welcomeChannel = useSelector(selectClanSystemMessage);
 	const handleOpenInvite = useCallback(async () => {
 		try {
+			const welcomeChannel = await dispatch(fetchSystemMessageByClanId({ clanId: currentClanId as string })).unwrap();
+
 			const intiveIdChannel = (channelID ? channelID : welcomeChannel.channel_id) as string;
 			const res = await createLinkInviteUser(effectiveClanId ?? '', intiveIdChannel, 10);
 			if (res && res?.invite_link) {
@@ -57,7 +58,7 @@ const ModalInvite = (props: ModalParam) => {
 		} catch {
 			console.log('Error when create invite link');
 		}
-	}, [welcomeChannel.channel_id, channelID, effectiveClanId]);
+	}, [channelID, effectiveClanId]);
 
 	useEffect(() => {
 		handleOpenInvite();
@@ -85,15 +86,6 @@ const ModalInvite = (props: ModalParam) => {
 		}
 	};
 
-	const dispatch = useAppDispatch();
-	const fetchSystemMessage = async () => {
-		if (!currentClanId) return;
-		await dispatch(fetchSystemMessageByClanId({ clanId: currentClanId }));
-	};
-
-	useEffect(() => {
-		fetchSystemMessage();
-	}, [currentClanId]);
 	const appearanceTheme = useSelector(selectTheme);
 	const closeModalEdit = useCallback(() => setModalEdit(false), []);
 	return !modalEdit ? (

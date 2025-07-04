@@ -2,8 +2,9 @@ import { captureSentryError } from '@mezon/logger';
 import { LoadingStatus } from '@mezon/utils';
 import { createAsyncThunk, createEntityAdapter, createSelector, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit';
 import { ApiAuditLog, MezonapiListAuditLog } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { ensureSession, getMezonCtx, MezonValueContext } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { RootState } from '../store';
 
 export const AUDIT_LOG_FEATURE_KEY = 'auditlog';
 const FETCH_AUDIT_LOG_CACHED_TIME = 1000 * 60 * 60;
@@ -16,6 +17,7 @@ export interface IAuditLogState extends EntityState<ApiAuditLog, string> {
 	loadingStatus: LoadingStatus;
 	error?: string | null;
 	auditLogData: MezonapiListAuditLog;
+	cache?: CacheMetadata;
 }
 
 type getAuditLogListPayload = {
@@ -36,20 +38,39 @@ export const auditLogAdapter = createEntityAdapter({
 	}
 });
 
-export const fetchAuditLogCached = memoizeAndTrack(
-	async (mezon: MezonValueContext, actionLog: string, userId: string, clanId?: string, date_log?: string) => {
-		const response = await mezon.client.listAuditLog(mezon.session, actionLog, userId, clanId, date_log);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: FETCH_AUDIT_LOG_CACHED_TIME,
-		normalizer: (args) => {
-			// set default value
-			return args[1] + args[2] + args[3] + args[4] + args[0].session.username;
-		}
+export const fetchAuditLogCached = async (
+	getState: () => RootState,
+	mezon: MezonValueContext,
+	actionLog: string,
+	userId: string,
+	clanId: string,
+	date_log: string,
+	noCache = false
+) => {
+	const currentState = getState();
+	const auditLogState = currentState[AUDIT_LOG_FEATURE_KEY];
+	const apiKey = createApiKey('fetchAuditLog', actionLog, userId, clanId, date_log);
+
+	const shouldForceCall = shouldForceApiCall(apiKey, auditLogState.cache, noCache);
+
+	if (!shouldForceCall) {
+		return {
+			...auditLogState.auditLogData,
+			fromCache: true,
+			time: auditLogState.cache?.lastFetched || Date.now()
+		};
 	}
-);
+
+	const response = await mezon.client.listAuditLog(mezon.session, actionLog, userId, clanId, date_log);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 export const auditLogList = createAsyncThunk(
 	'auditLog/auditLogList',
@@ -57,13 +78,29 @@ export const auditLogList = createAsyncThunk(
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
 
-			if (noCache) {
-				fetchAuditLogCached.delete(mezon, actionLog, userId, clanId, date_log);
+			const response = await fetchAuditLogCached(
+				thunkAPI.getState as () => RootState,
+				mezon,
+				actionLog,
+				userId,
+				clanId,
+				date_log,
+				Boolean(noCache)
+			);
+
+			if (!response) {
+				return thunkAPI.rejectWithValue('Invalid auditLogList');
 			}
-			const response = await fetchAuditLogCached(mezon, actionLog, userId, clanId, date_log);
+
+			if (response.fromCache) {
+				return {
+					fromCache: true
+				};
+			}
+
 			return response;
 		} catch (error) {
-			captureSentryError(error, 'attachment/fetchChannelAttachments');
+			captureSentryError(error, 'auditLog/auditLogList');
 			return thunkAPI.rejectWithValue(error);
 		}
 	}
@@ -78,18 +115,25 @@ export const initialAuditLogState: IAuditLogState = auditLogAdapter.getInitialSt
 export const auditLogSlice = createSlice({
 	name: AUDIT_LOG_FEATURE_KEY,
 	initialState: initialAuditLogState,
-	reducers: {},
+	reducers: {
+		updateCache: (state) => {
+			state.cache = createCacheMetadata(FETCH_AUDIT_LOG_CACHED_TIME);
+		}
+	},
 	extraReducers: (builder) => {
 		builder
 			.addCase(auditLogList.pending, (state: IAuditLogState) => {
 				state.loadingStatus = 'loading';
 			})
-			.addCase(auditLogList.fulfilled, (state: IAuditLogState, action: PayloadAction<MezonapiListAuditLog>) => {
+			.addCase(auditLogList.fulfilled, (state: IAuditLogState, action: PayloadAction<MezonapiListAuditLog & { fromCache?: boolean }>) => {
+				const { fromCache, ...auditLogData } = action.payload;
+
+				if (!fromCache) {
+					state.auditLogData = auditLogData;
+					state.cache = createCacheMetadata(FETCH_AUDIT_LOG_CACHED_TIME);
+				}
+
 				state.loadingStatus = 'loaded';
-				state.auditLogData = {
-					...action.payload,
-					total_count: action.payload?.total_count
-				};
 			})
 			.addCase(auditLogList.rejected, (state: IAuditLogState, action) => {
 				state.loadingStatus = 'error';
@@ -105,7 +149,7 @@ export const auditLogActions = {
 	auditLogList
 };
 
-const { selectAll, selectById, selectEntities } = auditLogAdapter.getSelectors();
+const { selectAll } = auditLogAdapter.getSelectors();
 export const getAuditLogState = (rootState: { [AUDIT_LOG_FEATURE_KEY]: IAuditLogState }): IAuditLogState => rootState[AUDIT_LOG_FEATURE_KEY];
 export const selectAllAuditLog = createSelector(getAuditLogState, selectAll);
 export const selectAllAuditLogData = createSelector(getAuditLogState, (state) => {

@@ -1,8 +1,7 @@
 import { usePermissionChecker } from '@mezon/core';
 import { selectCurrentChannelId } from '@mezon/store';
 import { Icons } from '@mezon/ui';
-import { EOverriddenPermission, EPermission } from '@mezon/utils';
-import { Button } from 'flowbite-react';
+import { EOverriddenPermission } from '@mezon/utils';
 import { useSelector } from 'react-redux';
 
 type EmptyThreadProps = {
@@ -11,7 +10,7 @@ type EmptyThreadProps = {
 
 const EmptyThread = ({ onClick }: EmptyThreadProps) => {
 	const currentChannelId = useSelector(selectCurrentChannelId);
-	const [canManageThread] = usePermissionChecker([EOverriddenPermission.manageThread, EPermission.viewChannel], currentChannelId ?? '');
+	const [canManageThread] = usePermissionChecker([EOverriddenPermission.manageThread], currentChannelId ?? '');
 	const handleCreateThread = () => {
 		onClick();
 	};
@@ -27,13 +26,12 @@ const EmptyThread = ({ onClick }: EmptyThreadProps) => {
 				Stay focused on a conversation with a thread - a temporary text channel.
 			</p>
 			{canManageThread && (
-				<Button
+				<button
 					onClick={handleCreateThread}
-					size="sm"
-					className="mt-6 h-10 font-medium text-sm rounded focus:ring-transparent bg-bgSelectItem dark:bg-bgSelectItem hover:!bg-bgSelectItemHover"
+					className=" py-2 px-3 mt-6 h-10 font-medium text-sm rounded focus:ring-transparent bg-bgSelectItem dark:bg-bgSelectItem hover:!bg-bgSelectItemHover"
 				>
 					Create Thread
-				</Button>
+				</button>
 			)}
 		</div>
 	);

@@ -1,7 +1,6 @@
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { useTheme } from '@mezon/mobile-ui';
-import { useAppSelector } from '@mezon/store';
-import { categoriesActions, selectCategoryExpandStateByCategoryId, useAppDispatch } from '@mezon/store-mobile';
+import { categoriesActions, selectCategoryExpandStateByCategoryId, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
 import { ICategoryChannel } from '@mezon/utils';
 import React, { memo, useCallback } from 'react';
 import { DeviceEventEmitter, View } from 'react-native';

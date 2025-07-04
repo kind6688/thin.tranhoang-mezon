@@ -1,6 +1,6 @@
 import { ActionEmitEvent, QUALITY_IMAGE_UPLOAD } from '@mezon/mobile-components';
 import { useTheme } from '@mezon/mobile-ui';
-import { createEmojiSetting, selectCurrentClanId, selectEmojiByClanId, useAppDispatch } from '@mezon/store-mobile';
+import { createEmojiSetting, selectCurrentClanId, selectEmojiByClanId, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
 import { handleUploadEmoticon, useMezon } from '@mezon/transport';
 import { LIMIT_SIZE_UPLOAD_IMG } from '@mezon/utils';
 import { Snowflake } from '@theinternetfolks/snowflake';
@@ -29,7 +29,7 @@ export function ClanEmojiSetting({ navigation }: MenuClanScreenProps<ClanSetting
 	const currentClanId = useSelector(selectCurrentClanId) || '';
 	const { sessionRef, clientRef } = useMezon();
 	const { t } = useTranslation(['clanEmojiSetting']);
-	const emojiList = useSelector(selectEmojiByClanId(currentClanId || ''));
+	const emojiList = useAppSelector((state) => selectEmojiByClanId(state, currentClanId || ''));
 
 	useEffect(() => {
 		navigation.setOptions({

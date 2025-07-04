@@ -4,7 +4,7 @@ import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, crea
 import { ApiAllUsersAddChannelResponse } from 'mezon-js/api.gen';
 import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { selectAllUserClans, selectEntitesUserClans } from '../clanMembers/clan.members';
-import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
+import { MezonValueContext, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { RootState } from '../store';
 import { ChannelMembersEntity } from './channel.members';
 
@@ -37,7 +37,7 @@ export const fetchUserChannelsCached = async (
 	const userChannelsState = currentState[ALL_USERS_BY_ADD_CHANNEL];
 	const apiKey = createApiKey('fetchUserChannels', channelId, limit, ensuredMezon.session.username || '');
 	const shouldForceCall = shouldForceApiCall(apiKey, userChannelsState?.cacheByChannels?.[channelId], noCache);
-	if (!shouldForceCall && userChannelsState?.entities?.[channelId]) {
+	if (!shouldForceCall) {
 		const cachedData = userChannelsState.entities[channelId];
 		return {
 			...cachedData,
@@ -45,7 +45,20 @@ export const fetchUserChannelsCached = async (
 			fromCache: true
 		};
 	}
-	const response = await ensuredMezon.client.listChannelUsersUC(ensuredMezon.session, channelId, limit);
+
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListChannelUsersUC',
+			list_channel_users_uc_req: {
+				channel_id: channelId,
+				limit
+			}
+		},
+		() => ensuredMezon.client.listChannelUsersUC(ensuredMezon.session, channelId, limit),
+		'channel_users_uc_list'
+	);
+
 	markApiFirstCalled(apiKey);
 
 	return {

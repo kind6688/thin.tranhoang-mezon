@@ -259,12 +259,7 @@ export const MemberContextMenuProvider: FC<MemberContextMenuProps> = ({ children
 			</Menu>
 
 			{openModalRemoveMember && currentUser && (
-				<ModalRemoveMemberClan
-					openModal={openModalRemoveMember}
-					username={currentUser?.user?.username}
-					onClose={closeRemoveMemberModal}
-					onRemoveMember={handleRemoveMember}
-				/>
+				<ModalRemoveMemberClan username={currentUser?.user?.username} onClose={closeRemoveMemberModal} onRemoveMember={handleRemoveMember} />
 			)}
 		</MemberContextMenuContext.Provider>
 	);

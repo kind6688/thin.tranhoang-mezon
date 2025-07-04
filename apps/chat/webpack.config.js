@@ -64,7 +64,7 @@ module.exports = composePlugins(
     config.resolve = config.resolve || {};
     config.resolve.fallback = { "fs": false };
 
-    if (config.output) {
+    if (config.output && process.env.NODE_ENV === 'production') {
       config.output.filename = config.output.filename || '[name].[contenthash].js';
       config.output.chunkFilename = config.output.chunkFilename || '[name].[contenthash].chunk.js';
       config.optimization = config.optimization || {};
@@ -72,12 +72,9 @@ module.exports = composePlugins(
       config.optimization.chunkIds = 'deterministic';
 
       const versionHash = require('crypto').createHash('md5').update(APP_VERSION + Date.now().toString()).digest('hex').substring(0, 8);
-
-      if (process.env.NODE_ENV === 'production') {
-        config.output.filename = `[name].${versionHash}.[contenthash].js`;
-        config.output.chunkFilename = `[name].${versionHash}.[contenthash].chunk.js`;
-        config.output.assetModuleFilename = `assets/[name].${versionHash}.[contenthash][ext]`;
-      }
+      config.output.filename = `[name].${versionHash}.[contenthash].js`;
+      config.output.chunkFilename = `[name].${versionHash}.[contenthash].chunk.js`;
+      config.output.assetModuleFilename = `assets/[name].${versionHash}.[contenthash][ext]`;
     }
 
     config.plugins.push(

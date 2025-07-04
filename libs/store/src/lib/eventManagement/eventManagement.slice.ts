@@ -3,8 +3,8 @@ import { EEventAction, EEventStatus, ERepeatType, IEventManagement, LoadingStatu
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiEventManagement, ApiGenerateMezonMeetResponse, ApiUserEventRequest } from 'mezon-js/api.gen';
 import { ApiCreateEventRequest, MezonUpdateEventBody } from 'mezon-js/dist/api.gen';
-import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
+import { MezonValueContext, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { RootState } from '../store';
 
 export const EVENT_MANAGEMENT_FEATURE_KEY = 'eventmanagement';
@@ -15,20 +15,50 @@ export interface EventManagementEntity extends IEventManagement {
 
 export const eventManagementAdapter = createEntityAdapter<EventManagementEntity>();
 
-const EVENT_MANAGEMENT_CACHED_TIME = 1000 * 60 * 60;
-const fetchEventManagementCached = memoizeAndTrack(
-	async (mezon: MezonValueContext, clanId: string) => {
-		const response = await mezon.client.listEvents(mezon.session, clanId);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: EVENT_MANAGEMENT_CACHED_TIME,
-		normalizer: (args) => {
-			return args[1] + args[0].session.username;
-		}
+const { selectAll } = eventManagementAdapter.getSelectors();
+
+const selectCachedEventManagementByClan = createSelector(
+	[(state: RootState, clanId: string) => state[EVENT_MANAGEMENT_FEATURE_KEY].byClans[clanId]?.entities],
+	(entitiesState) => {
+		return entitiesState ? selectAll(entitiesState) : [];
 	}
 );
+
+export const fetchEventManagementCached = async (getState: () => RootState, ensuredMezon: MezonValueContext, clanId: string, noCache = false) => {
+	const state = getState();
+	const eventData = state[EVENT_MANAGEMENT_FEATURE_KEY].byClans[clanId];
+	const apiKey = createApiKey('fetchEventManagement', clanId);
+	const shouldForceCall = shouldForceApiCall(apiKey, eventData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		const events = selectCachedEventManagementByClan(state, clanId);
+		return {
+			events: events,
+			time: Date.now(),
+			fromCache: true
+		};
+	}
+
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListEvents',
+			list_event_req: {
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.listEvents(ensuredMezon.session, clanId),
+		'event_list'
+	);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		time: Date.now(),
+		fromCache: false
+	};
+};
 
 export const mapEventManagementToEntity = (eventRes: ApiEventManagement, clanId?: string) => {
 	return {
@@ -50,15 +80,10 @@ export const fetchEventManagement = createAsyncThunk(
 		try {
 			thunkAPI.dispatch(eventManagementActions.initializeClanState(clanId as string));
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-
-			if (noCache) {
-				fetchEventManagementCached.delete(mezon, clanId);
-			}
-
-			const response = await fetchEventManagementCached(mezon, clanId);
+			const response = await fetchEventManagementCached(thunkAPI.getState as () => RootState, mezon, clanId, noCache);
 
 			if (!response.events) {
-				return { events: [], clanId };
+				return { events: [], clanId, fromCache: response?.fromCache };
 			}
 			if (Date.now() - response.time > 1000) {
 				return {
@@ -68,7 +93,7 @@ export const fetchEventManagement = createAsyncThunk(
 				};
 			}
 			const events = response.events.map((eventRes) => mapEventManagementToEntity(eventRes, clanId));
-			return { events, clanId };
+			return { events, clanId, fromCache: response?.fromCache };
 		} catch (error) {
 			captureSentryError(error, 'eventManagement/fetchEventManagement');
 			return thunkAPI.rejectWithValue(error);
@@ -237,6 +262,7 @@ export interface EventManagementState {
 		string,
 		{
 			entities: EntityState<EventManagementEntity, string>;
+			cache?: CacheMetadata;
 		}
 	>;
 	loadingStatus: LoadingStatus;
@@ -401,6 +427,9 @@ export const eventManagementSlice = createSlice({
 							entities: eventManagementAdapter.getInitialState()
 						};
 					}
+					if (state?.byClans?.[action?.payload?.clanId] && !action?.payload?.fromCache) {
+						state.byClans[action.payload.clanId].cache = createCacheMetadata();
+					}
 					if (action.payload.fromCache) return;
 					eventManagementAdapter.setAll(state.byClans[action.payload.clanId].entities, action.payload.events);
 				}
@@ -445,8 +474,6 @@ export const eventManagementActions = {
 	fetchDeleteEventManagement,
 	updateEventManagement
 };
-
-const { selectAll } = eventManagementAdapter.getSelectors();
 
 export const getEventManagementState = (rootState: { [EVENT_MANAGEMENT_FEATURE_KEY]: EventManagementState }): EventManagementState =>
 	rootState[EVENT_MANAGEMENT_FEATURE_KEY];

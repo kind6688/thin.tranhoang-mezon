@@ -3,7 +3,7 @@ import { ICategory, LoadingStatus, SortChannel, TypeCheck } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiCategoryDesc, ApiCreateCategoryDescRequest, ApiUpdateCategoryDescRequest, ApiUpdateCategoryOrderRequest } from 'mezon-js/api.gen';
 import { CacheMetadata, clearApiCallTracker, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
-import { MezonValueContext, ensureSession, ensureSocket, getMezonCtx } from '../helpers';
+import { MezonValueContext, ensureSession, ensureSocket, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { RootState } from '../store';
 
 export const CATEGORIES_FEATURE_KEY = 'categories';
@@ -77,7 +77,7 @@ export const fetchCategoriesCached = async (getState: () => RootState, ensuredMe
 	const apiKey = createApiKey('fetchCategories', clanId);
 	const shouldForceCall = shouldForceApiCall(apiKey, clanData?.cache, noCache);
 
-	if (!shouldForceCall && clanData?.entities.ids.length > 0) {
+	if (!shouldForceCall) {
 		const categories = selectCachedCategoriesByClan(state, clanId);
 		return {
 			categorydesc: categories,
@@ -85,7 +85,17 @@ export const fetchCategoriesCached = async (getState: () => RootState, ensuredMe
 		};
 	}
 
-	const response = await ensuredMezon.client.listCategoryDescs(ensuredMezon.session, clanId);
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListCategoryDescs',
+			list_category_req: {
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.listCategoryDescs(ensuredMezon.session, clanId),
+		'category_list'
+	);
 
 	markApiFirstCalled(apiKey);
 

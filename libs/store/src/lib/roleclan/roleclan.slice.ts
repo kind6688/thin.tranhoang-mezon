@@ -1,16 +1,18 @@
 import { captureSentryError } from '@mezon/logger';
-import { EVERYONE_ROLE_ID, IRolesClan, LoadingStatus, UsersClanEntity } from '@mezon/utils';
+import { IRolesClan, LoadingStatus, UsersClanEntity } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiUpdateRoleRequest } from 'mezon-js';
-import { ApiRole, ApiUpdateRoleOrderRequest, RoleUserListRoleUser } from 'mezon-js/api.gen';
+import { ApiRole, ApiRoleListEventResponse, ApiUpdateRoleOrderRequest, RoleUserListRoleUser } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { selectEntitesUserClans } from '../clanMembers/clan.members';
-import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { MezonValueContext, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { PermissionUserEntity, selectAllPermissionsDefaultEntities } from '../policies/policies.slice';
 import { RootState } from '../store';
 
 export const ROLES_CLAN_FEATURE_KEY = 'rolesclan';
 export const ROLE_FEATURE_KEY = 'roleId';
+
+const ROLES_CLAN_CACHE_TIME = 1000 * 60 * 60;
 
 /*
  * Update these interfaces according to your requirements.
@@ -26,12 +28,25 @@ export const mapRolesClanToEntity = (RolesClanRes: ApiRole) => {
 };
 
 export interface RolesClanState extends EntityState<RolesClanEntity, string> {
+	byClans: Record<
+		string,
+		{
+			roles: Record<string, RolesClanEntity>;
+			roleMembers: Record<string, RoleUserListRoleUser[]>;
+			loadingStatus: LoadingStatus;
+			cache?: CacheMetadata;
+		}
+	>;
 	loadingStatus: LoadingStatus;
 	error?: string | null;
 	currentRoleId?: string | null;
-	roleMembers: Record<string, RoleUserListRoleUser[]>;
-	roles: IRolesClan[];
 }
+
+const getInitialClanState = () => ({
+	roles: {},
+	roleMembers: {},
+	loadingStatus: 'not loaded' as LoadingStatus
+});
 
 export const RolesClanAdapter = createEntityAdapter({
 	selectId: (role: RolesClanEntity) => role.id
@@ -44,37 +59,78 @@ type GetRolePayload = {
 	noCache?: boolean;
 };
 
-export const fetchRolesClanCached = memoizeAndTrack(
-	async (mezon: MezonValueContext, clanId: string) => {
-		const response = await mezon.client.listRoles(mezon.session, clanId, 500, 1, '');
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: 1000 * 60 * 60,
-		normalizer: (args) => {
-			const username = args[0]?.session?.username || '';
-			return args[1] + username;
-		}
+type FetchRoleClanPayload = {
+	roles: IRolesClan[];
+	clanId: string;
+	fromCache?: boolean;
+};
+
+const { selectEntities } = RolesClanAdapter.getSelectors();
+
+const selectCachedRolesClanByClan = createSelector(
+	[(state: RootState) => state[ROLES_CLAN_FEATURE_KEY].byClans, (state: RootState, clanId: string) => clanId],
+	(byClans, clanId) => {
+		const clanData = byClans[clanId];
+		return clanData ? Object.values(clanData.roles) : [];
 	}
 );
+
+export const fetchRolesClanCached = async (getState: () => RootState, ensuredMezon: MezonValueContext, clanId: string, noCache = false) => {
+	const state = getState();
+	const roleClanData = state[ROLES_CLAN_FEATURE_KEY].byClans[clanId];
+	const apiKey = createApiKey('fetchRolesClan', clanId);
+	const shouldForceCall = shouldForceApiCall(apiKey, roleClanData?.cache, noCache);
+	const roles = selectCachedRolesClanByClan(state, clanId);
+
+	if (!shouldForceCall) {
+		return {
+			clan_id: clanId,
+			roles: {
+				roles: roles || []
+			},
+			fromCache: true
+		};
+	}
+
+	const response = (await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListRoles',
+			role_list_event_req: {
+				limit: 500,
+				state: 1,
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.listRoles(ensuredMezon.session, clanId, 500, 1, ''),
+		'role_event_list'
+	)) as ApiRoleListEventResponse;
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false
+	};
+};
 
 export const fetchRolesClan = createAsyncThunk(
 	'RolesClan/fetchRolesClan',
 	async ({ clanId, repace = false, channelId, noCache }: GetRolePayload, thunkAPI) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			if (noCache) {
-				fetchRolesClanCached.delete(mezon, clanId || '');
-			}
-			const response = await fetchRolesClanCached(mezon, clanId || '');
+			const response = await fetchRolesClanCached(thunkAPI.getState as () => RootState, mezon, clanId || '', noCache);
 			if (!response?.roles?.roles) {
-				return [];
+				return {
+					roles: [],
+					clanId: clanId || '',
+					fromCache: !!response?.fromCache
+				};
 			}
 			if (repace) {
-				thunkAPI.dispatch(rolesClanActions.removeRoleByChannel(channelId ?? ''));
+				thunkAPI.dispatch(rolesClanActions.removeRoleByChannel({ channelId: channelId ?? '', clanId: clanId || '' }));
 			}
-			const roles = response?.roles.roles
+			const roles: IRolesClan[] = response?.roles.roles
 				.filter((role) => role?.active)
 				.map((role, index) => ({ ...role, originalIndex: index }))
 				.sort((role_1, role_2) => {
@@ -93,7 +149,12 @@ export const fetchRolesClan = createAsyncThunk(
 				})
 				.map(mapRolesClanToEntity);
 
-			return roles;
+			const payload: FetchRoleClanPayload = {
+				roles: roles,
+				clanId: clanId || '',
+				fromCache: !!response?.fromCache
+			};
+			return payload;
 		} catch (error) {
 			captureSentryError(error, 'RolesClan/fetchRolesClan');
 			return thunkAPI.rejectWithValue(error);
@@ -110,7 +171,7 @@ type FetchMembersRolePayload = {
 	roleId: string;
 	clanId: string;
 };
-export const fetchMembersRole = createAsyncThunk('MembersRole/fetchMembersRole', async ({ roleId }: FetchMembersRolePayload, thunkAPI) => {
+export const fetchMembersRole = createAsyncThunk('MembersRole/fetchMembersRole', async ({ roleId, clanId }: FetchMembersRolePayload, thunkAPI) => {
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
 		const response = await mezon.client.listRoleUsers(mezon.session, roleId, 100, '');
@@ -119,8 +180,9 @@ export const fetchMembersRole = createAsyncThunk('MembersRole/fetchMembersRole',
 		}
 		return {
 			roleID: roleId,
+			clanId: clanId,
 			members: response.role_users
-		} as FetchReturnMembersRole;
+		} as FetchReturnMembersRole & { clanId: string };
 	} catch (error) {
 		captureSentryError(error, 'MembersRole/fetchMembersRole');
 		return thunkAPI.rejectWithValue(error);
@@ -134,7 +196,7 @@ export const fetchDeleteRole = createAsyncThunk(
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
 			const response = await mezon.client.deleteRole(mezon.session, roleId, clanId);
-			thunkAPI.dispatch(rolesClanActions.remove(roleId));
+			thunkAPI.dispatch(rolesClanActions.remove({ roleId, clanId }));
 			if (!response) {
 				return thunkAPI.rejectWithValue([]);
 			}
@@ -285,10 +347,8 @@ export const updatePermissionUserByRoleId = createAsyncThunk(
 );
 
 export const initialRolesClanState: RolesClanState = RolesClanAdapter.getInitialState({
+	byClans: {},
 	loadingStatus: 'not loaded',
-	RolesClan: [],
-	roleMembers: {},
-	roles: [],
 	error: null
 });
 
@@ -296,38 +356,88 @@ export const RolesClanSlice = createSlice({
 	name: ROLES_CLAN_FEATURE_KEY,
 	initialState: initialRolesClanState,
 	reducers: {
-		add: RolesClanAdapter.addOne,
-		remove: RolesClanAdapter.removeOne,
-		update: (state, action: PayloadAction<ApiRole>) => {
+		add: (state, action: PayloadAction<{ role: RolesClanEntity; clanId: string }>) => {
+			const { role, clanId } = action.payload;
+			if (!state.byClans[clanId]) {
+				state.byClans[clanId] = getInitialClanState();
+			}
+			state.byClans[clanId].roles[role.id] = role;
+			RolesClanAdapter.addOne(state, role);
+		},
+		remove: (state, action: PayloadAction<{ roleId: string; clanId: string }>) => {
+			const { roleId, clanId } = action.payload;
+			if (state.byClans[clanId]?.roles[roleId]) {
+				delete state.byClans[clanId].roles[roleId];
+			}
+			RolesClanAdapter.removeOne(state, roleId);
+		},
+		update: (state, action: PayloadAction<{ role: ApiRole; clanId: string }>) => {
+			const { role, clanId } = action.payload;
 			const changes: Partial<{
 				title: string;
 				color: string;
-				permission_list: typeof action.payload.permission_list;
-				role_user_list: typeof action.payload.role_user_list;
+				permission_list: typeof role.permission_list;
+				role_user_list: typeof role.role_user_list;
 			}> = {};
-			changes.title = action.payload.title;
-			changes.color = action.payload.color;
-			if (action.payload.permission_list?.permissions) {
-				changes.permission_list = action.payload.permission_list;
+			changes.title = role.title;
+			changes.color = role.color;
+			if (role.permission_list?.permissions) {
+				changes.permission_list = role.permission_list;
 			}
-			if (action.payload.role_user_list?.role_users) {
-				changes.role_user_list = action.payload.role_user_list;
+			if (role.role_user_list?.role_users) {
+				changes.role_user_list = role.role_user_list;
 			}
+
+			if (state.byClans[clanId]?.roles[role.id || '']) {
+				state.byClans[clanId].roles[role.id || ''] = {
+					...state.byClans[clanId].roles[role.id || ''],
+					...changes
+				};
+			}
+
 			RolesClanAdapter.updateOne(state, {
-				id: action.payload.id || '',
+				id: role.id || '',
 				changes: changes
 			});
 		},
-		setAll: (state, action: PayloadAction<RolesClanEntity[]>) => {
-			RolesClanAdapter.setAll(state, action.payload);
-		},
-		updateRemoveUserRole: (state, action: PayloadAction<{ userId: string }>) => {
-			const { userId } = action.payload;
-			const roles = Object.values(state.entities);
+		setAll: (state, action: PayloadAction<{ roles: RolesClanEntity[]; clanId: string }>) => {
+			const { roles, clanId } = action.payload;
+			if (!state.byClans[clanId]) {
+				state.byClans[clanId] = getInitialClanState();
+			}
+
+			state.byClans[clanId].roles = {};
+
 			roles.forEach((role) => {
+				state.byClans[clanId].roles[role.id] = role;
+			});
+
+			RolesClanAdapter.setAll(state, roles);
+		},
+		updateCache: (state, action: PayloadAction<{ clanId: string }>) => {
+			const { clanId } = action.payload;
+			if (!state.byClans[clanId]) {
+				state.byClans[clanId] = getInitialClanState();
+			}
+			state.byClans[clanId].cache = createCacheMetadata(ROLES_CLAN_CACHE_TIME);
+		},
+		updateRemoveUserRole: (state, action: PayloadAction<{ userId: string; clanId: string }>) => {
+			const { userId, clanId } = action.payload;
+			const clanData = state.byClans[clanId];
+			if (!clanData) return;
+
+			Object.values(clanData.roles).forEach((role) => {
 				if (role && role.role_user_list?.role_users) {
 					const updatedRoleUsers = role.role_user_list.role_users.filter((user) => user.id !== userId);
 					if (updatedRoleUsers.length !== role.role_user_list.role_users.length) {
+						clanData.roles[role.id] = {
+							...role,
+							role_user_list: {
+								...role.role_user_list,
+								role_users: updatedRoleUsers
+							}
+						};
+
 						RolesClanAdapter.updateOne(state, {
 							id: role.id,
 							changes: {
@@ -341,13 +451,23 @@ export const RolesClanSlice = createSlice({
 				}
 			});
 		},
-		removeRoleByChannel: (state, action: PayloadAction<string>) => {
-			const channelId = action.payload;
-			const updatedRoles = Object.values(state.entities).filter((role) => {
+		removeRoleByChannel: (state, action: PayloadAction<{ channelId: string; clanId: string }>) => {
+			const { channelId, clanId } = action.payload;
+			const clanData = state.byClans[clanId];
+			if (!clanData) return;
+
+			const updatedRoles = Object.values(clanData.roles).filter((role) => {
 				if (role.channel_ids) {
 					return !role.channel_ids.includes(channelId);
 				}
+				return true;
 			});
+
+			clanData.roles = {};
+			updatedRoles.forEach((role) => {
+				clanData.roles[role.id] = role;
+			});
+
 			return RolesClanAdapter.setAll(state, updatedRoles);
 		},
 		setCurrentRoleId: (state, action: PayloadAction<string>) => {
@@ -356,26 +476,67 @@ export const RolesClanSlice = createSlice({
 	},
 	extraReducers: (builder) => {
 		builder
-			.addCase(fetchRolesClan.pending, (state: RolesClanState) => {
+			.addCase(fetchRolesClan.pending, (state: RolesClanState, action) => {
+				const clanId = action.meta.arg.clanId;
+				if (clanId) {
+					if (!state.byClans[clanId]) {
+						state.byClans[clanId] = getInitialClanState();
+					}
+					state.byClans[clanId].loadingStatus = 'loading';
+				}
 				state.loadingStatus = 'loading';
 			})
-			.addCase(fetchRolesClan.fulfilled, (state: RolesClanState, action: PayloadAction<IRolesClan[]>) => {
-				RolesClanAdapter.setAll(state, action.payload);
+			.addCase(fetchRolesClan.fulfilled, (state: RolesClanState, action: PayloadAction<FetchRoleClanPayload>) => {
+				const { roles, clanId, fromCache } = action.payload;
+
+				if (!state.byClans[clanId]) {
+					state.byClans[clanId] = getInitialClanState();
+				}
+
+				if (!fromCache) {
+					state.byClans[clanId].roles = {};
+
+					roles.forEach((role) => {
+						state.byClans[clanId].roles[role.id] = role;
+					});
+
+					state.byClans[clanId].cache = createCacheMetadata(ROLES_CLAN_CACHE_TIME);
+				}
+
+				state.byClans[clanId].loadingStatus = 'loaded';
+				RolesClanAdapter.setMany(state, roles);
 				state.loadingStatus = 'loaded';
 			})
-
 			.addCase(fetchRolesClan.rejected, (state: RolesClanState, action) => {
+				const clanId = action.meta.arg.clanId;
+				if (clanId) {
+					if (!state.byClans[clanId]) {
+						state.byClans[clanId] = getInitialClanState();
+					}
+					state.byClans[clanId].loadingStatus = 'error';
+				}
 				state.loadingStatus = 'error';
 				state.error = action.error.message;
 			});
 		builder
-			.addCase(fetchMembersRole.fulfilled, (state: RolesClanState, action: PayloadAction<FetchReturnMembersRole>) => {
-				state.roleMembers[action.payload.roleID] = action.payload.members;
+			.addCase(fetchMembersRole.fulfilled, (state: RolesClanState, action: PayloadAction<FetchReturnMembersRole & { clanId: string }>) => {
+				const { roleID, members, clanId } = action.payload;
+				if (!state.byClans[clanId]) {
+					state.byClans[clanId] = getInitialClanState();
+				}
+				state.byClans[clanId].roleMembers[roleID] = members;
 			})
 			.addCase(updateRole.fulfilled, (state: RolesClanState, action: PayloadAction<RolesClanEntity>) => {
+				const role = action.payload;
+				const clanId = role.clan_id;
+
+				if (clanId && state.byClans[clanId]?.roles[role.id]) {
+					state.byClans[clanId].roles[role.id] = role;
+				}
+
 				RolesClanAdapter.updateOne(state, {
-					id: action.payload.id,
-					changes: action.payload
+					id: role.id,
+					changes: role
 				});
 			});
 	}
@@ -508,34 +669,25 @@ export const rolesClanActions = {
 	updateRoleOrder
 };
 
-const { selectAll, selectEntities } = RolesClanAdapter.getSelectors();
-
 export const getRolesClanState = (rootState: { [ROLES_CLAN_FEATURE_KEY]: RolesClanState }): RolesClanState => rootState[ROLES_CLAN_FEATURE_KEY];
 
-export const selectAllRolesClan = createSelector(getRolesClanState, selectAll);
-export const selectEveryoneRole = createSelector(selectAllRolesClan, (state) => state.find((role) => role?.id === EVERYONE_ROLE_ID));
-export const selectRoleByRoleId = (roleID: string) => createSelector(selectAllRolesClan, (allRoleClan) => allRoleClan?.find((r) => r?.id === roleID));
-
-export const selectCurrentRoleId = createSelector(getRolesClanState, (state) => state.currentRoleId);
-
-export const selectRolesClanEntities = createSelector(getRolesClanState, selectEntities);
+export const selectAllRolesClan = createSelector([getRolesClanState, (state: RootState) => state.clans.currentClanId as string], (state, clanId) =>
+	Object.values(state.byClans[clanId]?.roles || {})
+);
 
 export const selectRolesByChannelId = (channelId?: string | null) =>
-	createSelector(selectRolesClanEntities, (entities) => {
-		const roles = Object.values(entities);
+	createSelector(selectAllRolesClan, (roles) => {
 		return roles.filter((role) => role?.channel_ids?.includes(channelId!));
 	});
 
-export const selectCurrentRole = createSelector(selectRolesClanEntities, selectCurrentRoleId, (RolesClanEntities, RoleId) =>
-	RoleId ? RolesClanEntities[RoleId] : null
+export const selectCurrentRoleId = createSelector(getRolesClanState, (state) => state.currentRoleId);
+
+export const selectCurrentRole = createSelector(
+	[selectAllRolesClan, selectCurrentRoleId],
+	(roles, roleId) => roles.find((role) => role.id === roleId) || null
 );
-export const selectAllRoleMember = createSelector(getRolesClanState, (state) => state.roleMembers);
-export const selectMembersByRoleID = (roleID: string) => {
-	createSelector(selectAllRoleMember, (roleMembers) => {
-		return roleMembers[roleID];
-	});
-};
-export const selectAllRoleIds = createSelector(selectAllRolesClan, (roles) => roles.map((role) => role.id));
+
+export const selectRolesClanEntities = createSelector(getRolesClanState, selectEntities);
 
 const handleMapUpdateRole = (
 	role: RolesClanEntity,

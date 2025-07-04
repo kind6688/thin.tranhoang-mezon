@@ -4,7 +4,7 @@ import { IVoice, IvoiceInfo, LoadingStatus } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ChannelType } from 'mezon-js';
 import { ApiGenerateMeetTokenResponse } from 'mezon-js/api.gen';
-import { ensureClientAsync, ensureSession, getMezonCtx } from '../helpers';
+import { ensureClientAsync, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { RootState } from '../store';
 
 export const VOICE_FEATURE_KEY = 'voice';
@@ -61,7 +61,21 @@ export const fetchVoiceChannelMembers = createAsyncThunk(
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
 
-			const response = await mezon.client.listChannelVoiceUsers(mezon.session, clanId, channelId, channelType, 1, 100, '');
+			const response = await fetchDataWithSocketFallback(
+				mezon,
+				{
+					api_name: 'ListChannelVoiceUsers',
+					list_channel_users_req: {
+						limit: 100,
+						state: 1,
+						channel_type: channelType,
+						clan_id: clanId
+					}
+				},
+				() => mezon.client.listChannelVoiceUsers(mezon.session, clanId, channelId, channelType, 1, 100, ''),
+				'voice_user_list'
+			);
+
 			if (!response.voice_channel_users) {
 				return [];
 			}

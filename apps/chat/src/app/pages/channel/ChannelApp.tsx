@@ -215,7 +215,7 @@ export const ChannelApps = React.memo(({ appChannel }: { appChannel: ApiChannelA
 				console.error('Failed to update participant state:', err);
 			}
 		},
-		[dispatch, appChannel, userProfile]
+		[dispatch, appChannel, userProfile?.user?.display_name]
 	);
 
 	useEffect(() => {
@@ -233,7 +233,7 @@ export const ChannelApps = React.memo(({ appChannel }: { appChannel: ApiChannelA
 		};
 
 		joinRoom();
-	}, [appChannel, participantMeetState]);
+	}, [appChannel]);
 
 	return appChannel?.app_url ? (
 		<div className="relative w-full h-full rounded-b-lg">

@@ -3,11 +3,13 @@ import {
 	channelsActions,
 	clansActions,
 	selectCurrentChannelId,
+	selectCurrentClan,
 	selectIsShowEmptyCategory,
 	selectListChannelRenderByClanId,
+	useAppDispatch,
+	useAppSelector,
 	voiceActions
-} from '@mezon/store';
-import { selectCurrentClan, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
+} from '@mezon/store-mobile';
 import { ICategoryChannel } from '@mezon/utils';
 import { useFocusEffect } from '@react-navigation/native';
 import { ChannelType } from 'mezon-js';
@@ -117,8 +119,8 @@ const ChannelList = () => {
 				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
 				stickyHeaderIndices={[1]}
 				showsVerticalScrollIndicator={true}
-				initialNumToRender={5}
-				maxToRenderPerBatch={5}
+				initialNumToRender={10}
+				maxToRenderPerBatch={10}
 				windowSize={10}
 				updateCellsBatchingPeriod={50}
 				scrollEventThrottle={16}

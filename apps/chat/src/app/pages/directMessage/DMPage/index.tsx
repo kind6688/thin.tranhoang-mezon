@@ -154,15 +154,15 @@ const DirectMessage = () => {
 	const distanceToRight = window.innerWidth - positionOfSmileButton.right;
 	let topPositionEmojiPanel: string;
 
-	useEffect(() => {
-		dispatch(
-			directActions.joinDirectMessage({
-				directMessageId: currentDmGroup?.channel_id ?? '',
-				channelName: '',
-				type: Number(type)
-			})
-		);
-	}, [currentDmGroup?.channel_id]);
+	// useEffect(() => {
+	// 	dispatch(
+	// 		directActions.joinDirectMessage({
+	// 			directMessageId: currentDmGroup?.channel_id ?? '',
+	// 			channelName: '',
+	// 			type: Number(type)
+	// 		})
+	// 	);
+	// }, [currentDmGroup?.channel_id]);
 
 	if (distanceToBottom < HEIGHT_EMOJI_PANEL) {
 		topPositionEmojiPanel = 'auto';

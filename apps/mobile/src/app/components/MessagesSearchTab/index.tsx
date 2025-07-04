@@ -3,13 +3,17 @@ import { Colors, size, useTheme } from '@mezon/mobile-ui';
 import {
 	channelsActions,
 	ChannelUsersEntity,
+	getStoreAsync,
+	ISearchMessage,
 	messagesActions,
 	MessagesEntity,
+	searchMessagesActions,
 	selectAllMessageSearch,
+	selectCurrentPage,
 	selectMessageSearchByChannelId,
+	useAppDispatch,
 	useAppSelector
-} from '@mezon/store';
-import { getStoreAsync, ISearchMessage, searchMessagesActions, selectCurrentPage, useAppDispatch } from '@mezon/store-mobile';
+} from '@mezon/store-mobile';
 import { SIZE_PAGE_SEARCH, sleep } from '@mezon/utils';
 import { useNavigation } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';

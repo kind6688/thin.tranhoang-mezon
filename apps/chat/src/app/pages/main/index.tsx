@@ -86,7 +86,7 @@ function MyApp() {
 	const dispatch = useAppDispatch();
 	const currentClanId = useSelector(selectCurrentClanId);
 	const [openCreateClanModal, closeCreateClanModal] = useModal(() => <ModalCreateClan open={true} onClose={closeCreateClanModal} />);
-	const [openSearchModal, closeSearchModal] = useModal(() => <SearchModal onClose={closeSearchModal} open={true} />);
+	const [openSearchModal, closeSearchModal] = useModal(() => <SearchModal onClose={closeSearchModal} />);
 	const openModalAttachment = useSelector(selectOpenModalAttachment);
 	const closeMenu = useSelector(selectCloseMenu);
 	const statusMenu = useSelector(selectStatusMenu);
@@ -190,7 +190,7 @@ function MyApp() {
 				onClick={handleClick}
 			>
 				{previewMode && <PreviewOnboardingMode />}
-				{openPopupForward && <ForwardMessageModal openModal={openPopupForward} />}
+				{openPopupForward && <ForwardMessageModal />}
 				<SidebarMenu openCreateClanModal={openCreateClanModal} />
 				<Topbar isHidden={currentClanId !== '0' ? !currentChannel?.id : !directId} />
 				<MainContent />

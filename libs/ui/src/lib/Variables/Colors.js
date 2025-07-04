@@ -94,7 +94,9 @@ module.exports = {
 	buttonSearchHover: '#2C2E32',
 	buttonMore: '#272120',
 	buttonMoreHover: '#1E1A19',
-	buttonPrimary: '#5865F2',
+	buttonPrimary: '#5865f2',
+	buttonPrimaryHover: 'hsl(233.115 calc(1*49.194%) 51.373% /1)',
+	buttonBorder: 'hsl(0 calc(1*0%) 100% /0.0784313725490196)',
 
 	primary: '#155EEF',
 	hoverPrimary: '#124FC9',

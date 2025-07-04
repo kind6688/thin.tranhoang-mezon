@@ -1,15 +1,14 @@
 import { captureSentryError } from '@mezon/logger';
-import { stickerSettingActions } from '@mezon/store';
 import { IEmojiRecent, RECENT_EMOJI_CATEGORY } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiClanEmoji } from 'mezon-js/dist/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { stickerSettingActions } from '../settingSticker/settingSticker.slice';
+import { RootState } from '../store';
 import { emojiSuggestionActions, selectAllEmojiSuggestion } from './emojiSuggestion.slice';
 
 export const EMOJI_RECENT_FEATURE_KEY = 'emojiRecent';
-
-const EMOJI_RECENT_CACHE_TIME = 1000 * 60 * 60;
 
 export interface EmojiRecentEntity extends IEmojiRecent {
 	id: string;
@@ -18,38 +17,55 @@ export interface EmojiRecentEntity extends IEmojiRecent {
 export interface EmojiRecentState extends EntityState<EmojiRecentEntity, string> {
 	loadingStatus: 'not loaded' | 'loading' | 'loaded' | 'error';
 	lastEmojiRecent: { emoji_recents_id: string; emoji_id?: string };
+	cache?: CacheMetadata;
 }
 
 export const emojiRecentAdapter = createEntityAdapter({
 	selectId: (emo: EmojiRecentEntity) => emo.emoji_id || ''
 });
 
-export const fetchEmojiRecentCached = memoizeAndTrack(
-	async (mezon: MezonValueContext) => {
-		const response = await mezon.client.emojiRecentList(mezon.session);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: EMOJI_RECENT_CACHE_TIME,
-		normalizer: (args) => {
-			return args[0]?.session?.username || '';
-		}
+const { selectAll: selectAllEmojiRecentEntities } = emojiRecentAdapter.getSelectors();
+
+const selectCachedEmojiRecent = createSelector([(state: RootState) => state[EMOJI_RECENT_FEATURE_KEY]], (entitiesState) => {
+	return entitiesState ? selectAllEmojiRecentEntities(entitiesState) : [];
+});
+
+export const fetchEmojiRecentCached = async (getState: () => RootState, ensuredMezon: MezonValueContext, noCache = false) => {
+	const state = getState();
+	const emojiData = state[EMOJI_RECENT_FEATURE_KEY];
+	const apiKey = createApiKey('fetchEmojiRecent');
+	const shouldForceCall = shouldForceApiCall(apiKey, emojiData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		const emojis = selectCachedEmojiRecent(state);
+		return {
+			emoji_recents: emojis,
+			time: Date.now(),
+			fromCache: true
+		};
 	}
-);
+	const response = await ensuredMezon.client.emojiRecentList(ensuredMezon.session);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		time: Date.now(),
+		fromCache: false
+	};
+};
 
 export const fetchEmojiRecent = createAsyncThunk('emoji/fetchEmojiRecent', async ({ noCache = false }: { noCache?: boolean }, thunkAPI) => {
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
-
-		if (noCache) {
-			fetchEmojiRecentCached.delete(mezon);
-		}
-		const response = await fetchEmojiRecentCached(mezon);
+		const response = await fetchEmojiRecentCached(thunkAPI.getState as () => RootState, mezon, noCache);
 
 		if (!response?.emoji_recents) {
 			thunkAPI.dispatch(emojiRecentActions.setLastEmojiRecent({ emoji_recents_id: '0', emoji_id: '' }));
-			return [];
+			return {
+				emojis: [],
+				fromCache: response?.fromCache
+			};
 		}
 		thunkAPI.dispatch(
 			emojiRecentActions.setLastEmojiRecent({
@@ -57,7 +73,10 @@ export const fetchEmojiRecent = createAsyncThunk('emoji/fetchEmojiRecent', async
 				emoji_id: response.emoji_recents[0].emoji_id
 			})
 		);
-		return response.emoji_recents;
+		return {
+			emojis: response.emoji_recents,
+			fromCache: response?.fromCache
+		};
 	} catch (error) {
 		captureSentryError(error, 'emoji/fetchEmojiRecent');
 		return thunkAPI.rejectWithValue(error);
@@ -133,8 +152,9 @@ export const emojiRecentSlice = createSlice({
 			.addCase(fetchEmojiRecent.pending, (state: EmojiRecentState) => {
 				state.loadingStatus = 'loading';
 			})
-			.addCase(fetchEmojiRecent.fulfilled, (state, action: PayloadAction<any[]>) => {
-				emojiRecentAdapter.setAll(state, action.payload);
+			.addCase(fetchEmojiRecent.fulfilled, (state, action: PayloadAction<any>) => {
+				if (!action?.payload?.fromCache) state.cache = createCacheMetadata();
+				if (action?.payload?.emojis) emojiRecentAdapter.setAll(state, action.payload.emojis);
 
 				state.loadingStatus = 'loaded';
 			})
@@ -154,8 +174,6 @@ export const emojiRecentActions = {
 	fetchEmojiRecent,
 	buyItemForSale
 };
-
-const { selectAll, selectEntities } = emojiRecentAdapter.getSelectors();
 
 export const getEmojiRecentState = (rootState: { [EMOJI_RECENT_FEATURE_KEY]: EmojiRecentState }): EmojiRecentState =>
 	rootState[EMOJI_RECENT_FEATURE_KEY];

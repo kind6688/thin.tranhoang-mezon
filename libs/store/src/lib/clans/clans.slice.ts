@@ -9,7 +9,7 @@ import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, s
 import { channelsActions } from '../channels/channels.slice';
 import { usersClanActions } from '../clanMembers/clan.members';
 import { eventManagementActions } from '../eventManagement/eventManagement.slice';
-import { MezonValueContext, ensureClient, ensureSession, ensureSocket, getMezonCtx } from '../helpers';
+import { MezonValueContext, ensureClient, ensureSession, ensureSocket, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { defaultNotificationCategoryActions } from '../notificationSetting/notificationSettingCategory.slice';
 import { defaultNotificationActions } from '../notificationSetting/notificationSettingClan.slice';
 import { policiesActions } from '../policies/policies.slice';
@@ -97,7 +97,7 @@ export const changeCurrentClan = createAsyncThunk<void, ChangeCurrentClanArgs>(
 				thunkAPI.dispatch(rolesClanActions.fetchRolesClan({ clanId }));
 				thunkAPI.dispatch(eventManagementActions.fetchEventManagement({ clanId }));
 				thunkAPI.dispatch(policiesActions.fetchPermissionsUser({ clanId }));
-				thunkAPI.dispatch(policiesActions.fetchPermission());
+				thunkAPI.dispatch(policiesActions.fetchPermission({}));
 				thunkAPI.dispatch(defaultNotificationCategoryActions.fetchChannelCategorySetting({ clanId }));
 				thunkAPI.dispatch(defaultNotificationActions.getDefaultNotificationClan({ clanId: clanId }));
 				thunkAPI.dispatch(channelsActions.setStatusChannelFetch(clanId));
@@ -137,12 +137,11 @@ export const fetchClansCached = async (
 ) => {
 	const rootState = getState();
 	const clansState = rootState[CLANS_FEATURE_KEY];
-
 	const apiKey = createApiKey('fetchClans', limit?.toString() || '', state?.toString() || '', cursor || '');
 
 	const shouldForceCall = shouldForceApiCall(apiKey, clansState.cache, noCache);
 
-	if (!shouldForceCall && clansState.ids.length > 0) {
+	if (!shouldForceCall) {
 		const clans = selectCachedClans(rootState);
 		return {
 			clandesc: clans,
@@ -150,7 +149,18 @@ export const fetchClansCached = async (
 		};
 	}
 
-	const response = await ensuredMezon.client.listClanDescs(ensuredMezon.session, limit, state, cursor || '');
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListClanDescs',
+			list_clan_req: {
+				limit: limit,
+				state: 1
+			}
+		},
+		() => ensuredMezon.client.listClanDescs(ensuredMezon.session, limit, state, cursor || ''),
+		'clan_desc_list'
+	);
 
 	markApiFirstCalled(apiKey);
 
@@ -169,7 +179,6 @@ export const fetchClans = createAsyncThunk('clans/fetchClans', async ({ noCache 
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
 		const response = await fetchClansCached(thunkAPI.getState as () => RootState, mezon, LIMIT_CLAN_ITEM, 1, '', noCache);
-
 		if (!response.clandesc) {
 			return { clans: [], fromCache: response.fromCache };
 		}

@@ -1,12 +1,14 @@
 import { useBottomSheetModal } from '@gorhom/bottom-sheet';
 import { useMarkAsRead, usePermissionChecker } from '@mezon/core';
-import { ActionEmitEvent, Icons } from '@mezon/mobile-components';
+import { ActionEmitEvent } from '@mezon/mobile-components';
 import { Colors, baseColor, useTheme } from '@mezon/mobile-ui';
 import {
 	appActions,
 	categoriesActions,
 	channelsActions,
 	defaultNotificationCategoryActions,
+	fetchSystemMessageByClanId,
+	selectClanSystemMessage,
 	selectCurrentChannelId,
 	selectCurrentClan,
 	useAppDispatch
@@ -14,7 +16,7 @@ import {
 import { EPermission, ICategoryChannel, sleep } from '@mezon/utils';
 import Clipboard from '@react-native-clipboard/clipboard';
 import { useNavigation } from '@react-navigation/native';
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, Text, View } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -51,18 +53,34 @@ export default function CategoryMenu({ category }: ICategoryMenuProps) {
 	const { handleMarkAsReadCategory, statusMarkAsReadCategory } = useMarkAsRead();
 	const { dismiss } = useBottomSheetModal();
 	const dispatch = useAppDispatch();
+	const currentSystemMessage = useSelector(selectClanSystemMessage);
+
+	const isHasSystemChannel = useMemo(() => {
+		return category?.channels?.some((channel) => channel === currentSystemMessage?.channel_id);
+	}, [category?.channels, currentSystemMessage?.channel_id]);
 
 	const handleRemoveCategory = useCallback(() => {
-		DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
-		dispatch(
-			categoriesActions.deleteCategory({
-				clanId: category?.clan_id as string,
-				categoryId: category?.id as string,
-				categoryLabel: category?.category_name as string
-			})
-		);
-		dispatch(channelsActions.fetchChannels({ clanId: category?.clan_id, noCache: true, isMobile: true }));
-	}, [category?.category_name, category?.clan_id, category?.id]);
+		try {
+			DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
+			dispatch(appActions.setLoadingMainMobile(true));
+			if (isHasSystemChannel) {
+				Toast.show({ type: 'error', text1: t('menu.toast.systemChannel', { categoryName: category?.category_name }) });
+				return;
+			}
+			dispatch(
+				categoriesActions.deleteCategory({
+					clanId: category?.clan_id as string,
+					categoryId: category?.id as string,
+					categoryLabel: category?.category_name as string
+				})
+			);
+			dispatch(channelsActions.fetchChannels({ clanId: category?.clan_id, noCache: true, isMobile: true }));
+		} catch (error) {
+			Toast.show({ type: 'error', text1: t('menu.toast.error', { error }) });
+		} finally {
+			dispatch(appActions.setLoadingMainMobile(false));
+		}
+	}, [category?.category_name, category?.clan_id, category?.id, dispatch, isHasSystemChannel]);
 
 	const handleMarkAsRead = useCallback(async () => {
 		handleMarkAsReadCategory(category);
@@ -74,6 +92,7 @@ export default function CategoryMenu({ category }: ICategoryMenuProps) {
 
 	useEffect(() => {
 		dispatch(defaultNotificationCategoryActions.getDefaultNotificationCategory({ categoryId: category?.id }));
+		dispatch(fetchSystemMessageByClanId({ clanId: category.clan_id }));
 	}, []);
 
 	const openBottomSheet = () => {
@@ -175,7 +194,7 @@ export default function CategoryMenu({ category }: ICategoryMenuProps) {
 		{
 			title: t('menu.organizationMenu.delete'),
 			onPress: handleDelete,
-			icon: <Icons.CloseLargeIcon color={Colors.textRed} />,
+			icon: <MezonIconCDN icon={IconCDN.closeLargeIcon} color={Colors.textRed} />,
 			isShow: isCanManageChannel,
 			textStyle: {
 				color: Colors.textRed

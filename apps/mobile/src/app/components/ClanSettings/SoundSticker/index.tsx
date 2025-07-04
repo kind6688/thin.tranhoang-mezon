@@ -1,5 +1,5 @@
 import { useTheme } from '@mezon/mobile-ui';
-import { selectAudioByClanId, selectCurrentClanId } from '@mezon/store-mobile';
+import { selectAudioByClanId, selectCurrentClanId, useAppSelector } from '@mezon/store-mobile';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dimensions, Platform, Pressable, ScrollView, Text, View } from 'react-native';
@@ -15,7 +15,7 @@ export function SoundBoardSetting({ navigation }: MenuClanScreenProps<ClanSettin
 	const styles = style(themeValue);
 	const currentClanId = useSelector(selectCurrentClanId) || '';
 	const { t } = useTranslation(['clanSoundSetting']);
-	const soundList = useSelector(selectAudioByClanId(currentClanId));
+	const soundList = useAppSelector((state) => selectAudioByClanId(state, currentClanId));
 
 	useEffect(() => {
 		navigation.setOptions({

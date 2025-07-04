@@ -7,7 +7,7 @@ type ActivityProps = {
 };
 
 const ActivityListItem = ({ user }: ActivityProps) => {
-	const activityByUserId = useAppSelector(selectActivityByUserId(user?.user?.id || ''));
+	const activityByUserId = useAppSelector((state) => selectActivityByUserId(state, user?.user?.id || ''));
 
 	return (
 		<div className="dark:border-borderDefault border-gray-300 group/list_friends">

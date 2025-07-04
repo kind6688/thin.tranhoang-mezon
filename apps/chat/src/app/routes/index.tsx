@@ -506,7 +506,7 @@ export const Routes = memo(() => {
 				]
 			}
 		]);
-	}, [loaderWithStore, session]);
+	}, [loaderWithStore]);
 
 	return <RouterProvider router={routes} />;
 });

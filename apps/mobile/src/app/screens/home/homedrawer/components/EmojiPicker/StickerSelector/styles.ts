@@ -10,7 +10,6 @@ export const style = (colors: Attributes) =>
 			overflow: 'hidden',
 			backgroundColor: Colors.black
 		},
-
 		audioContent: {
 			width: (Metrics.screenWidth - size.s_30) / 2.01,
 			borderRadius: 10,
@@ -21,33 +20,28 @@ export const style = (colors: Attributes) =>
 			paddingHorizontal: size.s_10,
 			paddingVertical: size.s_6
 		},
-
 		btnEmo: {
-			width: 30,
-			height: 30,
+			width: size.s_30,
+			height: size.s_30,
 			borderRadius: 50,
 			overflow: 'hidden',
 			backgroundColor: Colors.black
 		},
-
 		btnWrap: {
 			display: 'flex',
 			flexDirection: 'row',
 			gap: size.s_10,
 			marginTop: size.s_10
 		},
-
 		session: {},
-
 		sessionTitle: {
 			fontSize: size.medium,
-			color: Colors.tertiary,
+			color: colors.text,
 			fontWeight: '600',
 			textTransform: 'capitalize',
 			marginTop: size.s_20,
 			marginBottom: size.s_10
 		},
-
 		sessionContent: {
 			display: 'flex',
 			flexDirection: 'row',
@@ -55,7 +49,6 @@ export const style = (colors: Attributes) =>
 			gap: size.s_10,
 			alignItems: 'center'
 		},
-
 		soundName: {
 			fontSize: size.medium,
 			color: colors.text,
@@ -64,7 +57,7 @@ export const style = (colors: Attributes) =>
 			textAlign: 'center'
 		},
 		wrapperIconLocked: {
-			backgroundColor: 'rgba(0, 0, 0, 0.7)',
+			backgroundColor: 'rgba(0, 0, 0, 0.2)',
 			position: 'absolute',
 			alignSelf: 'center',
 			justifyContent: 'center',
@@ -73,5 +66,17 @@ export const style = (colors: Attributes) =>
 			width: '100%',
 			height: '100%',
 			zIndex: 1
+		},
+		forSaleContainer: {
+			flex: 1,
+			backgroundColor: colors.secondary,
+			justifyContent: 'center',
+			alignItems: 'center'
+		},
+		forSaleText: {
+			color: colors.textStrong,
+			fontSize: size.s_16,
+			fontWeight: 'bold'
 		}
+
 	});

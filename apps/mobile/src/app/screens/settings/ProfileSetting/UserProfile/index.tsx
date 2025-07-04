@@ -1,7 +1,6 @@
 import { useAccount } from '@mezon/core';
 import { useTheme } from '@mezon/mobile-ui';
-import { appActions, selectAllAccount } from '@mezon/store';
-import { getStore, useAppDispatch } from '@mezon/store-mobile';
+import { appActions, getStore, selectAllAccount, useAppDispatch } from '@mezon/store-mobile';
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KeyboardAvoidingView } from 'react-native';

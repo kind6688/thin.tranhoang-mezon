@@ -1,6 +1,6 @@
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { size, ThemeModeBase, useTheme } from '@mezon/mobile-ui';
-import { groupCallActions, selectCurrentUserId, useAppDispatch } from '@mezon/store';
+import { groupCallActions, selectCurrentUserId, useAppDispatch } from '@mezon/store-mobile';
 import { useMezon } from '@mezon/transport';
 import { WEBRTC_SIGNALING_TYPES } from '@mezon/utils';
 import LottieView from 'lottie-react-native';

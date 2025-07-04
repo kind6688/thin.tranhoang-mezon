@@ -1,6 +1,6 @@
 import { usePermissionChecker } from '@mezon/core';
 import { useTheme } from '@mezon/mobile-ui';
-import { selectCurrentChannelId } from '@mezon/store';
+import { selectCurrentChannelId } from '@mezon/store-mobile';
 import { EOverriddenPermission, EPermission } from '@mezon/utils';
 import { useTranslation } from 'react-i18next';
 import { Text, TouchableOpacity, View } from 'react-native';

@@ -66,7 +66,7 @@ const ListActiveRole = (props: ListActiveRoleProps) => {
 
 			dispatch(rolesClanActions.updateRoleOrder(requestBody))
 				.then(() => {
-					dispatch(rolesClanActions.setAll(currentRoles));
+					dispatch(rolesClanActions.setAll({ roles: currentRoles, clanId: currentClanId as string }));
 				})
 				.catch(() => {
 					toast('Failed to update role order.');

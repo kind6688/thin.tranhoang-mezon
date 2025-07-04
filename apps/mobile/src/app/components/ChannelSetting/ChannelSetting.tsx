@@ -2,10 +2,13 @@ import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { ActionEmitEvent, CheckIcon, STORAGE_DATA_CLAN_CHANNEL_CACHE, getUpdateOrAddClanChannelCache, isEqual, save } from '@mezon/mobile-components';
 import { Colors, useTheme } from '@mezon/mobile-ui';
 import {
+	appActions,
 	channelsActions,
+	fetchSystemMessageByClanId,
 	getStoreAsync,
 	selectAllChannels,
 	selectChannelById,
+	selectClanSystemMessage,
 	selectCurrentUserId,
 	threadsActions,
 	useAppDispatch,
@@ -48,6 +51,7 @@ export function ChannelSetting({ navigation, route }: MenuChannelScreenProps<Scr
 	const [isCheckValid, setIsCheckValid] = useState<boolean>(true);
 	const [isCheckDuplicateNameChannel, setIsCheckDuplicateNameChannel] = useState<boolean>(false);
 	const channelsClan = useSelector(selectAllChannels);
+	const currentSystemMessage = useSelector(selectClanSystemMessage);
 	const [originSettingValue, setOriginSettingValue] = useState<IChannelSettingValue>({
 		channelName: '',
 		channelTopic: ''
@@ -61,6 +65,10 @@ export function ChannelSetting({ navigation, route }: MenuChannelScreenProps<Scr
 	}, [originSettingValue, currentSettingValue]);
 
 	const currentUserId = useSelector(selectCurrentUserId);
+
+	useEffect(() => {
+		dispatch(fetchSystemMessageByClanId({ clanId: channel?.clan_id }));
+	}, []);
 
 	useEffect(() => {
 		navigation.setOptions({
@@ -250,24 +258,36 @@ export function ChannelSetting({ navigation, route }: MenuChannelScreenProps<Scr
 	// );
 
 	const handleDeleteChannel = useCallback(async () => {
-		await dispatch(
-			channelsActions.deleteChannel({
-				channelId: channel?.channel_id,
-				clanId: channel?.clan_id
-			})
-		);
-		DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
-		navigation.navigate(APP_SCREEN.HOME);
-		if (channel?.parent_id !== '0') {
+		try {
+			DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_MODAL, { isDismiss: true });
+			dispatch(appActions.setLoadingMainMobile(true));
+			if (channel?.channel_id === currentSystemMessage?.channel_id) {
+				Toast.show({ type: 'error', text1: t('confirm.delete.systemChannel') });
+				return;
+			}
+
 			await dispatch(
-				channelsActions.joinChannel({
-					clanId: channel?.clan_id,
-					channelId: channel?.parent_id,
-					noFetchMembers: false
+				channelsActions.deleteChannel({
+					channelId: channel?.channel_id,
+					clanId: channel?.clan_id
 				})
 			);
+			navigation.navigate(APP_SCREEN.HOME);
+			if (channel?.parent_id !== '0') {
+				await dispatch(
+					channelsActions.joinChannel({
+						clanId: channel?.clan_id,
+						channelId: channel?.parent_id,
+						noFetchMembers: false
+					})
+				);
+			}
+		} catch (error) {
+			Toast.show({ type: 'error', text1: t('confirm.delete.error', { error }) });
+		} finally {
+			dispatch(appActions.setLoadingMainMobile(false));
 		}
-	}, [channel?.channel_id, channel?.clan_id, channel?.parent_id]);
+	}, [channel?.channel_id, channel?.clan_id, channel?.parent_id, currentSystemMessage?.channel_id]);
 
 	const handleJoinChannel = async () => {
 		const channelId = channel?.parent_id || '';

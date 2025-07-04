@@ -1,9 +1,10 @@
 import { useAccount, useAppNavigation, useAuth } from '@mezon/core';
 import { selectCurrentChannelId, selectCurrentClanId } from '@mezon/store';
-import { Modal } from 'flowbite-react';
 import { safeJSONParse } from 'mezon-js';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useModal } from 'react-modal-hook';
 import { useSelector } from 'react-redux';
+import { ModalLayout } from '../../components';
 
 const AgeRestricted = ({ closeAgeRestricted }: { closeAgeRestricted: () => void }) => {
 	const currentChannelId = useSelector(selectCurrentChannelId);
@@ -45,6 +46,43 @@ const AgeRestricted = ({ closeAgeRestricted }: { closeAgeRestricted: () => void 
 		setDob(isoFormattedDate);
 	};
 
+	const [openModalConfirmAge, closeModalConfirmAge] = useModal(() => {
+		return (
+			<ModalLayout className="bg-bgModalDark" onClose={handleCloseModal}>
+				<div className="dark:bg-bgSecondary bg-bgLightMode pt-4 rounded flex flex-col items-center text-white w-[550px]">
+					<img src={'assets/images/cake.png'} alt="warning" width={200} height={200} />
+					<div className="text-center ml-6 mr-6">
+						<h2 className="text-2xl font-bold text-center mb-4">Please confirm your birthday</h2>
+						<p> To keep our users safe, we need to verify your age. We will only ask you for this once.</p>
+					</div>
+					<input
+						type="date"
+						id="birthday"
+						onChange={handleBirthdayChange}
+						className="mb-4 px-4 py-2 mt-5 border-2 border-gray-400 rounded-lg bg-bgModalDark w-9/10"
+					/>
+					<div className="flex space-x-4 mb-4 w-9/10">
+						<button
+							type="button"
+							onClick={handleSubmit}
+							className="border-2 border-blue-600 rounded-lg px-6 py-2 bg-blue-600 text-white w-full"
+						>
+							Submit
+						</button>
+					</div>
+				</div>
+			</ModalLayout>
+		);
+	}, []);
+
+	useEffect(() => {
+		if (userProfile?.user?.dob === '0001-01-01T00:00:00Z') {
+			openModalConfirmAge();
+		} else {
+			closeModalConfirmAge();
+		}
+	}, [userProfile?.user?.dob]);
+
 	return (
 		<div>
 			<div className="w-full h-full max-w-[100%] flex justify-center items-center  ">
@@ -66,38 +104,6 @@ const AgeRestricted = ({ closeAgeRestricted }: { closeAgeRestricted: () => void 
 					</div>
 				</div>
 			</div>
-			{userProfile?.user?.dob === '0001-01-01T00:00:00Z' && (
-				<Modal
-					className="bg-bgModalDark"
-					theme={{ content: { base: 'w-[550px]' } }}
-					show={true}
-					dismissible={true}
-					// onClose={handleCloseModal}
-				>
-					<div className=" pt-4 rounded flex flex-col items-center">
-						<img src={'assets/images/cake.png'} alt="warning" width={200} height={200} />
-						<div className="text-center ml-6 mr-6">
-							<h2 className="text-2xl font-bold text-center mb-4">Please confirm your birthday</h2>
-							<p> To keep our users safe, we need to verify your age. We will only ask you for this once.</p>
-						</div>
-						<input
-							type="date"
-							id="birthday"
-							onChange={handleBirthdayChange}
-							className="mb-4 px-4 py-2 mt-5 border-2 border-theme-primary rounded-lg bg-theme-input w-9/10"
-						/>
-						<div className="flex space-x-4 mb-4 w-9/10">
-							<button
-								type="button"
-								onClick={handleSubmit}
-								className="border-2 border-blue-600 rounded-lg px-6 py-2 bg-blue-600 text-white w-full"
-							>
-								Submit
-							</button>
-						</div>
-					</div>
-				</Modal>
-			)}
 		</div>
 	);
 };

@@ -2,19 +2,33 @@ import { captureSentryError } from '@mezon/logger';
 import { IDefaultNotification, IDefaultNotificationClan, LoadingStatus } from '@mezon/utils';
 import { PayloadAction, createAsyncThunk, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiNotificationSetting } from 'mezon-js/api.gen';
-import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
+import { MezonValueContext, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
+import { RootState } from '../store';
+
 export const DEFAULT_NOTIFICATION_CLAN_FEATURE_KEY = 'defaultnotificationclan';
 
+const DEFAULT_NOTIFICATION_CLAN_CACHE_TIME = 1000 * 60 * 60;
+
 export interface DefaultNotificationClanState {
+	byClans: Record<
+		string,
+		{
+			defaultNotificationClan?: IDefaultNotificationClan | null;
+			cache?: CacheMetadata;
+		}
+	>;
 	loadingStatus: LoadingStatus;
 	error?: string | null;
-	defaultNotificationClan?: IDefaultNotificationClan | null;
 }
 
-export const initialDefaultNotificationClanState: DefaultNotificationClanState = {
-	loadingStatus: 'not loaded',
+const getInitialClanState = () => ({
 	defaultNotificationClan: null
+});
+
+export const initialDefaultNotificationClanState: DefaultNotificationClanState = {
+	byClans: {},
+	loadingStatus: 'not loaded'
 };
 
 type fetchNotificationClanSettingsArgs = {
@@ -22,19 +36,41 @@ type fetchNotificationClanSettingsArgs = {
 	noCache?: boolean;
 };
 
-export const fetchDefaultNotificationClanCached = memoizeAndTrack(
-	async (mezon: MezonValueContext, clanId: string) => {
-		const response = await mezon.client.getNotificationClan(mezon.session, clanId);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: 1000 * 60 * 60,
-		normalizer: (args) => {
-			return args[1] + args[0]?.session?.username || '';
-		}
+export const fetchDefaultNotificationClanCached = async (getState: () => RootState, mezon: MezonValueContext, clanId: string, noCache = false) => {
+	const currentState = getState();
+	const clanData = currentState[DEFAULT_NOTIFICATION_CLAN_FEATURE_KEY].byClans[clanId];
+	const apiKey = createApiKey('fetchDefaultNotificationClan', clanId);
+
+	const shouldForceCall = shouldForceApiCall(apiKey, clanData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		return {
+			...clanData.defaultNotificationClan,
+			fromCache: true,
+			time: clanData.cache?.lastFetched || Date.now()
+		};
 	}
-);
+
+	const response = await fetchDataWithSocketFallback(
+		mezon,
+		{
+			api_name: 'GetNotificationClancase',
+			notification_clan: {
+				clan_id: clanId
+			}
+		},
+		() => mezon.client.getNotificationClan(mezon.session, clanId),
+		'notification_setting'
+	);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 export const getDefaultNotificationClan = createAsyncThunk(
 	'defaultnotificationclan/getDefaultNotificationClan',
@@ -42,19 +78,25 @@ export const getDefaultNotificationClan = createAsyncThunk(
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
 
-			if (noCache) {
-				fetchDefaultNotificationClanCached.delete(mezon, clanId);
-			}
-			const response = await fetchDefaultNotificationClanCached(mezon, clanId);
+			const response = await fetchDefaultNotificationClanCached(thunkAPI.getState as () => RootState, mezon, clanId, Boolean(noCache));
+
 			if (!response) {
 				return thunkAPI.rejectWithValue('Invalid getDefaultNotificationClan');
 			}
+
+			if (response.fromCache) {
+				return {
+					fromCache: true,
+					clanId
+				};
+			}
+
 			const clanNotificationConfig: ApiNotificationSetting = {
 				id: response.id,
 				notification_setting_type: response.notification_setting_type
 			};
 
-			return clanNotificationConfig;
+			return { ...clanNotificationConfig, clanId };
 		} catch (error) {
 			captureSentryError(error, 'defaultnotificationclan/getDefaultNotificationClan');
 			return thunkAPI.rejectWithValue(error);
@@ -92,16 +134,37 @@ export const setDefaultNotificationClan = createAsyncThunk(
 export const defaultNotificationClanSlice = createSlice({
 	name: DEFAULT_NOTIFICATION_CLAN_FEATURE_KEY,
 	initialState: initialDefaultNotificationClanState,
-	reducers: {},
+	reducers: {
+		updateCache: (state, action: PayloadAction<{ clanId: string }>) => {
+			const { clanId } = action.payload;
+			if (!state.byClans[clanId]) {
+				state.byClans[clanId] = getInitialClanState();
+			}
+			state.byClans[clanId].cache = createCacheMetadata(DEFAULT_NOTIFICATION_CLAN_CACHE_TIME);
+		}
+	},
 	extraReducers: (builder) => {
 		builder
 			.addCase(getDefaultNotificationClan.pending, (state: DefaultNotificationClanState) => {
 				state.loadingStatus = 'loading';
 			})
-			.addCase(getDefaultNotificationClan.fulfilled, (state: DefaultNotificationClanState, action: PayloadAction<ApiNotificationSetting>) => {
-				state.defaultNotificationClan = action.payload;
-				state.loadingStatus = 'loaded';
-			})
+			.addCase(
+				getDefaultNotificationClan.fulfilled,
+				(state: DefaultNotificationClanState, action: PayloadAction<ApiNotificationSetting & { clanId: string; fromCache?: boolean }>) => {
+					const { clanId, fromCache, ...notificationData } = action.payload;
+
+					if (!state.byClans[clanId]) {
+						state.byClans[clanId] = getInitialClanState();
+					}
+
+					if (!fromCache) {
+						state.byClans[clanId].defaultNotificationClan = notificationData;
+						state.byClans[clanId].cache = createCacheMetadata(DEFAULT_NOTIFICATION_CLAN_CACHE_TIME);
+					}
+
+					state.loadingStatus = 'loaded';
+				}
+			)
 			.addCase(getDefaultNotificationClan.rejected, (state: DefaultNotificationClanState, action) => {
 				state.loadingStatus = 'error';
 				state.error = action.error.message;
@@ -122,6 +185,11 @@ export const getDefaultNotificationClanState = (rootState: {
 }): DefaultNotificationClanState => rootState[DEFAULT_NOTIFICATION_CLAN_FEATURE_KEY];
 
 export const selectDefaultNotificationClan = createSelector(
-	getDefaultNotificationClanState,
-	(state: DefaultNotificationClanState) => state.defaultNotificationClan
+	[getDefaultNotificationClanState, (state: RootState) => state.clans.currentClanId as string],
+	(state, clanId) => state.byClans[clanId]?.defaultNotificationClan
+);
+
+export const selectDefaultNotificationClanByClanId = createSelector(
+	[getDefaultNotificationClanState, (state: RootState, clanId: string) => clanId],
+	(state, clanId) => state.byClans[clanId]?.defaultNotificationClan
 );

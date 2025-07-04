@@ -1,7 +1,6 @@
 import { ChatContext, useChatReaction } from '@mezon/core';
 import { ActionEmitEvent } from '@mezon/mobile-components';
-import { selectDmGroupCurrentId } from '@mezon/store';
-import { getStore, selectCurrentChannel } from '@mezon/store-mobile';
+import { getStore, selectCurrentChannel, selectDmGroupCurrentId } from '@mezon/store-mobile';
 import { useMezon } from '@mezon/transport';
 import { isPublicChannel } from '@mezon/utils';
 import React, { useCallback, useContext, useEffect, useRef } from 'react';

@@ -1,4 +1,4 @@
-import { selectCurrentClanId, selectEmojiByClanId, settingClanStickerActions, useAppDispatch } from '@mezon/store';
+import { selectCurrentClanId, selectEmojiByClanId, settingClanStickerActions, useAppDispatch, useAppSelector } from '@mezon/store';
 import { Modal } from '@mezon/ui';
 import { ClanEmoji } from 'mezon-js';
 import { RefObject, useCallback, useState } from 'react';
@@ -11,7 +11,7 @@ const SettingEmoji = ({ parentRef }: { parentRef: RefObject<HTMLDivElement> }) =
 	const currentClanId = useSelector(selectCurrentClanId);
 	const [openModal, setOpenModal] = useState(false);
 	const [openModalType, setOpenModalType] = useState(false);
-	const emojiList = useSelector(selectEmojiByClanId(currentClanId || ''));
+	const emojiList = useAppSelector((state) => selectEmojiByClanId(state, currentClanId || ''));
 	const [selectedEmoji, setSelectedEmoji] = useState<ClanEmoji | null>(null);
 	const [isOpenEditModal, setIsOpenEditModal] = useState<boolean>(false);
 	const dispatch = useAppDispatch();

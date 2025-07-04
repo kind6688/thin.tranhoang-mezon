@@ -1,5 +1,4 @@
 import { selectIsPrivate, threadsActions, useAppDispatch } from '@mezon/store';
-import { Checkbox, Label } from 'flowbite-react';
 import { useSelector } from 'react-redux';
 
 type PrivateThreadProps = {
@@ -20,13 +19,13 @@ const PrivateThread = ({ label, title }: PrivateThreadProps) => {
 		<div className="flex flex-col mt-4 mb-4">
 			<span className="text-xs font-semibold uppercase mb-2 dark:text-[#CCC] text-black">{title}</span>
 			<div className="flex items-center gap-2">
-				<Checkbox onChange={handleToggle} id="private" className="w-6 h-6 rounded-lg focus:ring-transparent cursor-pointer" />
-				<Label
+				<input type="checkbox" onChange={handleToggle} id="private" className="w-6 h-6 rounded-lg focus:ring-transparent cursor-pointer" />
+				<label
 					htmlFor="private"
 					className="dark:text-[#CCC] text-colorTextLightMode text-base dark:hover:text-white hover:text-black cursor-pointer"
 				>
 					{label}
-				</Label>
+				</label>
 			</div>
 			{isPrivate === 1 && (
 				<span className="text-xs dark:text-[#CCC] text-colorTextLightMode mt-2">You can invite new people by @mentioning them.</span>

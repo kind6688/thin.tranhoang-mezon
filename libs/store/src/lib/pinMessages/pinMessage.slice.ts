@@ -2,8 +2,9 @@ import { captureSentryError } from '@mezon/logger';
 import { IMessageWithUser, IPinMessage, LoadingStatus } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiPinMessageRequest } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { MezonValueContext, ensureSession, ensureSocket, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { RootState } from '../store';
 
 export const PIN_MESSAGE_FEATURE_KEY = 'pinmessages';
 
@@ -15,6 +16,13 @@ export interface PinMessageEntity extends IPinMessage {
 }
 
 export interface PinMessageState extends EntityState<PinMessageEntity, string> {
+	byChannels: Record<
+		string,
+		{
+			pinMessages?: PinMessageEntity[];
+			cache?: CacheMetadata;
+		}
+	>;
 	loadingStatus: LoadingStatus;
 	error?: string | null;
 	isPinModalVisible?: boolean;
@@ -28,16 +36,36 @@ type fetchChannelPinMessagesPayload = {
 };
 
 const CHANNEL_PIN_MESSAGES_CACHED_TIME = 1000 * 60 * 60;
-export const fetchChannelPinMessagesCached = memoizeAndTrack(
-	(mezon: MezonValueContext, channelId: string) => mezon.client.pinMessagesList(mezon.session, '', channelId, ''),
-	{
-		promise: true,
-		maxAge: CHANNEL_PIN_MESSAGES_CACHED_TIME,
-		normalizer: (args) => {
-			return args[1] + args[0].session.username;
-		}
+
+const getInitialChannelState = () => ({
+	pinMessages: []
+});
+
+export const fetchChannelPinMessagesCached = async (getState: () => RootState, mezon: MezonValueContext, channelId: string, noCache = false) => {
+	const currentState = getState();
+	const channelData = currentState[PIN_MESSAGE_FEATURE_KEY].byChannels[channelId];
+	const apiKey = createApiKey('fetchChannelPinMessages', channelId);
+
+	const shouldForceCall = shouldForceApiCall(apiKey, channelData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		return {
+			pin_messages_list: channelData.pinMessages,
+			fromCache: true,
+			time: channelData.cache?.lastFetched || Date.now()
+		};
 	}
-);
+
+	const response = await mezon.client.pinMessagesList(mezon.session, '', channelId, '');
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 export const mapChannelPinMessagesToEntity = (pinMessageRes: ApiPinMessageRequest) => {
 	return { ...pinMessageRes, id: pinMessageRes.message_id || '' };
@@ -49,26 +77,45 @@ export const fetchChannelPinMessages = createAsyncThunk(
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
 
-			if (noCache) {
-				fetchChannelPinMessagesCached.delete(mezon, channelId);
-			}
-			const response = await fetchChannelPinMessagesCached(mezon, channelId);
+			const response = await fetchChannelPinMessagesCached(thunkAPI.getState as () => RootState, mezon, channelId, Boolean(noCache));
+
 			if (!response) {
-				return [];
+				return {
+					channelId,
+					pinMessages: [] as PinMessageEntity[],
+					fromCache: false
+				};
+			}
+
+			if (response.fromCache) {
+				return {
+					channelId,
+					pinMessages: (response.pin_messages_list || []) as PinMessageEntity[],
+					fromCache: true
+				};
 			}
 
 			if (!response.pin_messages_list) {
-				return '';
+				return {
+					channelId,
+					pinMessages: [] as PinMessageEntity[],
+					fromCache: false
+				};
 			}
 
 			const pinMessages = response.pin_messages_list.map((pinMessageRes) => mapChannelPinMessagesToEntity(pinMessageRes));
-			return pinMessages;
+			return {
+				channelId,
+				pinMessages,
+				fromCache: false
+			};
 		} catch (error) {
 			captureSentryError(error, 'pinmessage/fetchChannelPinMessages');
 			return thunkAPI.rejectWithValue(error);
 		}
 	}
 );
+
 type SetChannelPinMessagesPayload = {
 	clan_id?: string;
 	channel_id: string;
@@ -79,7 +126,8 @@ type SetChannelPinMessagesPayload = {
 export const clearPinMessagesCacheThunk = createAsyncThunk('pinmessage/clearCache', async (channelId: string, thunkAPI) => {
 	try {
 		const mezon = await ensureSocket(getMezonCtx(thunkAPI));
-		fetchChannelPinMessagesCached.delete(mezon, channelId);
+		// Clear the cache from store instead of memoized function
+		thunkAPI.dispatch(pinMessageActions.clearChannelCache(channelId));
 	} catch (error) {
 		captureSentryError(error, 'pinmessage/clearCache');
 		return thunkAPI.rejectWithValue(error);
@@ -164,6 +212,7 @@ export const updateLastPin = createAsyncThunk(
 );
 
 export const initialPinMessageState: PinMessageState = pinMessageAdapter.getInitialState({
+	byChannels: {},
 	loadingStatus: 'not loaded',
 	error: null,
 	jumpPinMessageId: '',
@@ -179,6 +228,12 @@ export const pinMessageSlice = createSlice({
 		remove: pinMessageAdapter.removeOne,
 		togglePinModal: (state: PinMessageState) => {
 			state.isPinModalVisible = !state.isPinModalVisible;
+		},
+		clearChannelCache: (state: PinMessageState, action: PayloadAction<string>) => {
+			const channelId = action.payload;
+			if (state.byChannels[channelId]) {
+				delete state.byChannels[channelId];
+			}
 		}
 	},
 	extraReducers: (builder) => {
@@ -186,8 +241,22 @@ export const pinMessageSlice = createSlice({
 			.addCase(fetchChannelPinMessages.pending, (state: PinMessageState) => {
 				state.loadingStatus = 'loading';
 			})
-			.addCase(fetchChannelPinMessages.fulfilled, (state: PinMessageState, action: PayloadAction<any>) => {
-				pinMessageAdapter.setAll(state, action.payload);
+			.addCase(fetchChannelPinMessages.fulfilled, (state: PinMessageState, action) => {
+				const { channelId, pinMessages, fromCache } = action.payload;
+
+				if (!state.byChannels[channelId]) {
+					state.byChannels[channelId] = getInitialChannelState();
+				}
+
+				if (!fromCache) {
+					// Update entity adapter
+					pinMessageAdapter.setAll(state, pinMessages);
+
+					// Update channel cache
+					state.byChannels[channelId].pinMessages = pinMessages;
+					state.byChannels[channelId].cache = createCacheMetadata(CHANNEL_PIN_MESSAGES_CACHED_TIME);
+				}
+
 				state.loadingStatus = 'loaded';
 			})
 			.addCase(fetchChannelPinMessages.rejected, (state: PinMessageState, action) => {
@@ -248,14 +317,21 @@ const { selectEntities } = pinMessageAdapter.getSelectors();
 
 export const getPinMessageState = (rootState: { [PIN_MESSAGE_FEATURE_KEY]: PinMessageState }): PinMessageState => rootState[PIN_MESSAGE_FEATURE_KEY];
 export const selectPinMessageEntities = createSelector(getPinMessageState, selectEntities);
-export const selectPinMessageByChannelId = (channelId?: string | null) =>
-	createSelector(selectPinMessageEntities, (entities) => {
-		const messageIds = Object.values(entities);
-		return messageIds.filter((messageId) => messageId.channel_id?.includes(channelId || ''));
-	});
-export const selectLastPinMessageByChannelId = (channelId?: string | null) =>
-	createSelector(selectPinMessageByChannelId(channelId), (filteredMessages) => {
-		return filteredMessages[filteredMessages.length - 1]?.id || null;
-	});
+
+export const selectPinMessageByChannelId = createSelector(
+	[getPinMessageState, (state: RootState, channelId: string) => channelId],
+	(state, channelId) => {
+		if (!channelId) return [];
+		return state.byChannels[channelId]?.pinMessages || [];
+	}
+);
+
+export const selectLastPinMessageByChannelId = createSelector(
+	[getPinMessageState, (state: RootState, channelId: string) => channelId],
+	(state, channelId) => {
+		const pinMessages = state.byChannels[channelId]?.pinMessages || [];
+		return pinMessages[pinMessages.length - 1]?.id || null;
+	}
+);
 
 export const selectIsPinModalVisible = createSelector(getPinMessageState, (state: PinMessageState) => state.isPinModalVisible);

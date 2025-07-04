@@ -1,9 +1,13 @@
 import { Metrics, size, useTheme } from '@mezon/mobile-ui';
-import { MediaType, selectAllStickerSuggestion, selectCurrentClan, useAppSelector } from '@mezon/store';
-import { useEffect, useMemo, useState } from 'react';
-import { TouchableOpacity } from 'react-native';
+import { MediaType, selectAllStickerSuggestion, useAppSelector } from '@mezon/store-mobile';
+import { FOR_SALE_CATE } from '@mezon/utils';
+import { Snowflake } from '@theinternetfolks/snowflake';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
 import FastImage from 'react-native-fast-image';
 import { ScrollView } from 'react-native-gesture-handler';
+import MezonIconCDN from '../../../../../../componentUI/MezonIconCDN';
+import { IconCDN } from '../../../../../../constants/icon_cdn';
 import Sticker from './Sticker';
 import { style } from './styles';
 
@@ -11,14 +15,15 @@ type StickerSelectorProps = {
 	onSelected?: (url: string) => void;
 	onScroll?: (e: any) => void;
 	mediaType?: MediaType;
+	searchText?: string;
 };
 
-export default function StickerSelector({ onSelected, onScroll, mediaType = MediaType.STICKER }: StickerSelectorProps) {
+const StickerSelector = ({ onSelected, onScroll, mediaType = MediaType.STICKER, searchText }: StickerSelectorProps) => {
 	const { themeValue } = useTheme();
 	const styles = style(themeValue);
-	const [selectedType, setSelectedType] = useState('');
+	const [selectedCategory, setSelectedCategory] = useState(null);
 
-	const currentClan = useAppSelector(selectCurrentClan);
+	const isAudio = useMemo(() => mediaType === MediaType.AUDIO, [mediaType]);
 	const allStickers = useAppSelector(selectAllStickerSuggestion);
 
 	const clanStickers = useMemo(() => {
@@ -26,44 +31,58 @@ export default function StickerSelector({ onSelected, onScroll, mediaType = Medi
 			return allStickers?.filter((sticker) => (sticker as any).media_type === MediaType.AUDIO);
 		}
 		return allStickers?.filter((sticker) => (sticker as any).media_type === undefined || (sticker as any).media_type === MediaType.STICKER);
-	}, [allStickers, mediaType]);
+	}, [mediaType, allStickers]);
 
-	useEffect(() => {
-		setSelectedType('');
-	}, [mediaType]);
+	const filteredStickers = useMemo(() => {
+		if (!searchText?.trim()) return clanStickers;
 
-	const categoryLogo = clanStickers
-		.map((sticker) => ({
-			id: sticker.clan_id,
-			type: sticker.clan_name,
-			url: sticker.logo,
-			forSale: sticker?.is_for_sale
-		}))
-		.filter((sticker, index, self) => index === self.findIndex((s) => s.id === sticker.id));
+		const lowerCaseSearchTerm = searchText.trim().toLowerCase();
+		return clanStickers?.filter((item) => item?.shortname?.toLowerCase().includes(lowerCaseSearchTerm));
+	}, [clanStickers, searchText]);
 
-	const stickers = useMemo(
-		() =>
-			[
-				...clanStickers.map((sticker) => ({
-					id: sticker.id,
-					url: sticker.source,
-					type: sticker.clan_name,
-					name: sticker.shortname,
-					forSale: sticker?.is_for_sale
-				}))
-			].filter(Boolean),
-		[clanStickers]
-	);
+	const categoryLogo = useMemo(() => {
+		if (filteredStickers?.length === 0) return [];
 
-	function handlePressCategory(name: string) {
-		setSelectedType(name);
-	}
+		const uniqueCategories = new Map();
+		const result = [
+			{
+				id: Snowflake.generate(),
+				type: FOR_SALE_CATE,
+				url: '',
+				forSale: true
+			}
+		];
+
+		for (const sticker of filteredStickers) {
+			const item = {
+				id: sticker?.clan_id,
+				type: sticker?.clan_name,
+				url: sticker?.logo,
+				forSale: false
+			};
+
+			const key = `${item?.id}_${item?.type}_${item?.forSale}`;
+
+			if (!uniqueCategories.has(key)) {
+				uniqueCategories.set(key, true);
+				result.push(item);
+			}
+		}
+
+		return result;
+	}, [filteredStickers]);
+
+	const handlePressCategory = (category: any) => {
+		setSelectedCategory(category);
+	};
 
 	const handleClickImage = (sticker: any) => {
 		onSelected && onSelected(sticker);
 	};
 
-	const isAudio = mediaType === MediaType.AUDIO;
+	useEffect(() => {
+		setSelectedCategory(null);
+	}, [mediaType]);
 
 	return (
 		<ScrollView
@@ -73,40 +92,56 @@ export default function StickerSelector({ onSelected, onScroll, mediaType = Medi
 			contentContainerStyle={{ paddingBottom: size.s_10 * 2 }}
 		>
 			<ScrollView horizontal contentContainerStyle={styles.btnWrap}>
-				{categoryLogo?.map((item, index) => (
-					<TouchableOpacity key={index.toString()} onPress={() => handlePressCategory(item.type)} style={styles.btnEmo}>
-						<FastImage
-							resizeMode={FastImage.resizeMode.cover}
-							source={{
-								uri: item?.url || currentClan?.logo || '',
-								cache: FastImage.cacheControl.immutable,
-								priority: FastImage.priority.high
-							}}
-							style={{ height: '100%', width: '100%' }}
-						/>
-					</TouchableOpacity>
-				))}
+				{categoryLogo?.length > 0 &&
+					categoryLogo?.map((item, index) => (
+						<TouchableOpacity key={index.toString()} onPress={() => handlePressCategory(item)} style={styles.btnEmo}>
+							{item?.forSale ? (
+								<View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+									<MezonIconCDN icon={IconCDN.shopSparkleIcon} color={themeValue.textStrong} />
+								</View>
+							) : item?.url ? (
+								<FastImage
+									resizeMode={FastImage.resizeMode.cover}
+									source={{
+										uri: item?.url,
+										cache: FastImage.cacheControl.immutable,
+										priority: FastImage.priority.high
+									}}
+									style={{ height: '100%', width: '100%' }}
+								/>
+							) : (
+								<View style={styles.forSaleContainer}>
+									<Text style={styles.forSaleText}>{item?.type?.charAt(0)?.toUpperCase()}</Text>
+								</View>
+							)}
+						</TouchableOpacity>
+					))}
 			</ScrollView>
 
-			{!selectedType
-				? categoryLogo?.map((item, index) => (
+			{!selectedCategory
+				? categoryLogo?.length > 0 &&
+					categoryLogo?.map((item, index) => (
 						<Sticker
-							key={`${index}_${item.type}`}
-							stickerList={stickers}
+							key={`${index}_${item?.id}_${item?.type}_${item?.forSale}`}
+							stickerList={filteredStickers}
 							onClickSticker={handleClickImage}
-							categoryName={item.type}
+							categoryName={item?.type}
+							forSale={item?.forSale}
 							isAudio={isAudio}
 						/>
 					))
 				: [
 						<Sticker
-							key={`selected_${selectedType}`}
-							stickerList={stickers}
+							key={`selected_${selectedCategory?.id}_${selectedCategory?.type}_${selectedCategory?.forSale}`}
+							stickerList={filteredStickers}
 							onClickSticker={handleClickImage}
-							categoryName={selectedType}
+							categoryName={selectedCategory?.type}
+							forSale={selectedCategory?.forSale}
 							isAudio={isAudio}
 						/>
 					]}
 		</ScrollView>
 	);
-}
+};
+
+export default memo(StickerSelector);

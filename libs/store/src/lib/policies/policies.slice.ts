@@ -1,9 +1,11 @@
 import { IPermissionUser, LoadingStatus } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiPermission } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { ThunkConfigWithError } from '../errors';
-import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { MezonValueContext, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
+import { RootState } from '../store';
+
 export const POLICIES_FEATURE_KEY = 'policies';
 
 /*
@@ -24,6 +26,7 @@ export interface PoliciesState extends EntityState<PermissionUserEntity, string>
 	loadingStatus: LoadingStatus;
 	error?: string | null;
 	PermissionsUserId?: string | null;
+	cache?: CacheMetadata;
 }
 
 export const policiesAdapter = createEntityAdapter<PermissionUserEntity>();
@@ -36,29 +39,83 @@ export const fetchPermissionsUser = createAsyncThunk<any, fetchPermissionsUserPa
 	'policies/fetchPermissionsUser',
 	async ({ clanId }: fetchPermissionsUserPayload, thunkAPI) => {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
-		const response = await mezon.client.GetRoleOfUserInTheClan(mezon.session, clanId);
+		const response = await fetchDataWithSocketFallback(
+			mezon,
+			{
+				api_name: 'GetRoleOfUserInTheClan',
+				permission_user_req: {
+					clan_id: clanId
+				}
+			},
+			() => mezon.client.GetRoleOfUserInTheClan(mezon.session, clanId),
+			'role_list'
+		);
+
 		if (!response.roles) {
 			return [];
 		}
 		return response.roles.map(mapPermissionUserToEntity);
 	}
 );
-const LIST_PERMISSION_CACHED_TIME = 1000 * 60 * 60;
-export const fetchPermissionCached = memoizeAndTrack((mezon: MezonValueContext) => mezon.client.getListPermission(mezon.session), {
-	promise: true,
-	maxAge: LIST_PERMISSION_CACHED_TIME,
-	normalizer: (args) => {
-		return args[0].session.username ?? '';
-	}
-});
 
-export const fetchPermission = createAsyncThunk('policies/fetchPermission', async (_, thunkAPI) => {
-	const mezon = await ensureSession(getMezonCtx(thunkAPI));
-	const response = await fetchPermissionCached(mezon);
-	if (!response.permissions) {
-		return [];
+const LIST_PERMISSION_CACHED_TIME = 1000 * 60 * 60;
+
+export const fetchPermissionCached = async (getState: () => RootState, mezon: MezonValueContext, noCache = false) => {
+	const currentState = getState();
+	const policiesData = currentState[POLICIES_FEATURE_KEY];
+	const apiKey = createApiKey('fetchPermission', mezon.session.username || '');
+
+	const shouldForceCall = shouldForceApiCall(apiKey, policiesData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		return {
+			permissions: Object.values(policiesData.entities),
+			fromCache: true,
+			time: policiesData.cache?.lastFetched || Date.now()
+		};
 	}
-	return response.permissions?.map(mapPermissionUserToEntity);
+
+	const response = await fetchDataWithSocketFallback(
+		mezon,
+		{
+			api_name: 'GetListPermission'
+		},
+		() => mezon.client.getListPermission(mezon.session),
+		'permission_list'
+	);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
+
+type fetchPermissionPayload = {
+	noCache?: boolean;
+};
+
+export const fetchPermission = createAsyncThunk('policies/fetchPermission', async ({ noCache }: fetchPermissionPayload = {}, thunkAPI) => {
+	try {
+		const mezon = await ensureSession(getMezonCtx(thunkAPI));
+		const response = await fetchPermissionCached(thunkAPI.getState as () => RootState, mezon, Boolean(noCache));
+
+		if (response.fromCache) {
+			return {
+				fromCache: true,
+				permissions: []
+			};
+		}
+
+		return {
+			fromCache: response.fromCache,
+			permissions: response.permissions?.map(mapPermissionUserToEntity) || []
+		};
+	} catch (error) {
+		return thunkAPI.rejectWithValue(error);
+	}
 });
 
 export const initialPoliciesState: PoliciesState = policiesAdapter.getInitialState({
@@ -90,6 +147,9 @@ export const policiesSlice = createSlice({
 					slug: changes.slug
 				});
 			}
+		},
+		updateCache: (state) => {
+			state.cache = createCacheMetadata(LIST_PERMISSION_CACHED_TIME);
 		}
 	},
 	extraReducers: (builder) => {
@@ -104,6 +164,26 @@ export const policiesSlice = createSlice({
 			.addCase(fetchPermissionsUser.rejected, (state: PoliciesState, action) => {
 				state.loadingStatus = 'error';
 				state.error = action.error.message;
+			})
+			.addCase(fetchPermission.pending, (state: PoliciesState) => {
+				state.loadingStatus = 'loading';
+			})
+			.addCase(
+				fetchPermission.fulfilled,
+				(state: PoliciesState, action: PayloadAction<{ fromCache?: boolean; permissions: IPermissionUser[] }>) => {
+					const { fromCache, permissions } = action.payload;
+
+					if (!fromCache) {
+						policiesAdapter.setAll(state, permissions);
+						state.cache = createCacheMetadata(LIST_PERMISSION_CACHED_TIME);
+					}
+
+					state.loadingStatus = 'loaded';
+				}
+			)
+			.addCase(fetchPermission.rejected, (state: PoliciesState, action) => {
+				state.loadingStatus = 'error';
+				state.error = action.error.message;
 			});
 	}
 });
@@ -113,12 +193,20 @@ export const policiesDefaultSlice = createSlice({
 	initialState: initialPoliciesState,
 	reducers: {},
 	extraReducers: (builder) => {
-		builder.addCase(fetchPermission.fulfilled, (state: PoliciesState, action: PayloadAction<IPermissionUser[]>) => {
-			policiesAdapter.setAll(state, action.payload);
-			state.loadingStatus = 'loaded';
-		});
+		builder.addCase(
+			fetchPermission.fulfilled,
+			(state: PoliciesState, action: PayloadAction<{ fromCache?: boolean; permissions: IPermissionUser[] }>) => {
+				const { fromCache, permissions } = action.payload;
+
+				if (!fromCache) {
+					policiesAdapter.setAll(state, permissions);
+					state.loadingStatus = 'loaded';
+				}
+			}
+		);
 	}
 });
+
 /*
  * Export reducer for store configuration.
  */

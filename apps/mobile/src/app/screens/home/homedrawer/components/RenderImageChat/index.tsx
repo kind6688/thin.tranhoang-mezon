@@ -260,6 +260,7 @@ const ImageRenderer = React.memo(
 							priority: FastImage.priority.high,
 							cache: FastImage.cacheControl.immutable
 						}}
+						resizeMode={isMultiple ? 'cover' : 'contain'}
 						style={{ width: '100%', height: '100%' }}
 						onError={() => onError(new Error(`FastImage load failed for ${imageProxyObj?.url}`))}
 					/>

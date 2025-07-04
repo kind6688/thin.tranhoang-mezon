@@ -50,7 +50,6 @@ export * from './lib/helper/channel';
 export * from './lib/helpers';
 export * from './lib/invite/invite.slice';
 export * from './lib/meet/meet.slice';
-export * from './lib/memoize';
 export * from './lib/messages/SeenMessagePool';
 export * from './lib/messages/embedMessage.slice';
 export * from './lib/messages/messages.slice';

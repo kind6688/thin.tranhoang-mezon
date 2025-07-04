@@ -46,11 +46,7 @@ const SettingSticker = ({ parentRef }: { parentRef: RefObject<HTMLDivElement> })
 						<p className="text-base font-bold">Upload it here!</p>
 						<p className="text-xs ">Let's customize the amazing stickers with your interest</p>
 					</div>
-					<Button
-						label="upload sticker"
-						className="capitalize border-theme-primary  text-theme-primary-hover"
-						onClick={handleOpenModalUpload}
-					></Button>
+					<Button onClick={handleOpenModalUpload}>upload sticker</Button>
 				</div>
 				<div className="w-full flex flex-wrap gap-y-5 lg:gap-x-[calc((100%_-_116px_*_5)/4)] max-sbm:justify-evenly md:gap-x-[calc((100%_-_116px_*_4)/3)] gap-x-[calc((100%_-_116px_*_3)/2)]">
 					{listSticker.map((sticker) => (

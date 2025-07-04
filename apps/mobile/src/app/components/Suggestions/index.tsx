@@ -87,9 +87,9 @@ const Suggestions: FC<MentionSuggestionsProps> = memo(({ keyword, onSelect, list
 			keyExtractor={(item, index) => `${item?.id}_${index}_mention_suggestion`}
 			onEndReachedThreshold={0.1}
 			keyboardShouldPersistTaps="handled"
-			initialNumToRender={1}
-			maxToRenderPerBatch={1}
-			windowSize={2}
+			initialNumToRender={5}
+			maxToRenderPerBatch={5}
+			windowSize={15}
 			updateCellsBatchingPeriod={10}
 			decelerationRate={'fast'}
 			disableVirtualization={true}
@@ -173,9 +173,9 @@ const HashtagSuggestions: FC<MentionHashtagSuggestionsProps> = memo(({ keyword, 
 				</Pressable>
 			)}
 			keyExtractor={(_, index) => `${index}_hashtag_suggestion`}
-			initialNumToRender={1}
-			maxToRenderPerBatch={1}
-			windowSize={2}
+			initialNumToRender={5}
+			maxToRenderPerBatch={5}
+			windowSize={5}
 			onEndReachedThreshold={0.1}
 			keyboardShouldPersistTaps="handled"
 			removeClippedSubviews={true}
@@ -238,9 +238,9 @@ const EmojiSuggestion: FC<IEmojiSuggestionProps> = memo(({ keyword, onSelect }) 
 					<SuggestItem isDisplayDefaultAvatar={false} name={`:${item?.shortname?.split?.(':')?.join('')}:` ?? ''} emojiId={item?.id} />
 				</Pressable>
 			)}
-			initialNumToRender={1}
-			maxToRenderPerBatch={1}
-			windowSize={2}
+			initialNumToRender={5}
+			maxToRenderPerBatch={5}
+			windowSize={5}
 			onEndReachedThreshold={0.1}
 			keyboardShouldPersistTaps="handled"
 			keyExtractor={(_, index) => `${index}_emoji_suggestion`}

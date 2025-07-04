@@ -1,7 +1,6 @@
 import { Icons } from '@mezon/mobile-components';
 import { baseColor, size, useTheme } from '@mezon/mobile-ui';
-import { accountActions } from '@mezon/store';
-import { useAppDispatch } from '@mezon/store-mobile';
+import { accountActions, useAppDispatch } from '@mezon/store-mobile';
 import { useFocusEffect } from '@react-navigation/native';
 import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';

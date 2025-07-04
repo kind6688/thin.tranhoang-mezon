@@ -91,7 +91,6 @@ export class MezonNotificationService {
 		// Check if user already has an active connection
 		const existingConnection = this.userConnections.get(userId);
 		if (existingConnection && existingConnection.wsActive) {
-			console.warn(`User ${userId} already has an active notification connection`);
 			return;
 		}
 

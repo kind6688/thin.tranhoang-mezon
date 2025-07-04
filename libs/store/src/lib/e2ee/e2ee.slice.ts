@@ -4,7 +4,6 @@ import { EntityState, GetThunkAPI, createAsyncThunk, createEntityAdapter, create
 import { ApiPubKey } from 'mezon-js/api.gen';
 import { selectDirectById } from '../direct/direct.slice';
 import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
 import { RootState } from '../store';
 
 export const E2EE_FEATURE_KEY = 'e2ee';
@@ -110,19 +109,10 @@ export const e2eeSlice = createSlice({
 	}
 });
 
-export const fetchPubkeys = memoizeAndTrack(
-	async (mezon: MezonValueContext, userIds) => {
-		const response = await mezon.client.getPubKeys(mezon.session, userIds);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: 30000,
-		normalizer: (args) => {
-			return args[1] + args[0].session.username;
-		}
-	}
-);
+export const fetchPubkeys = async (mezon: MezonValueContext, userIds: string[]) => {
+	const response = await mezon.client.getPubKeys(mezon.session, userIds);
+	return { ...response, time: Date.now() };
+};
 
 export const e2eeReducer = e2eeSlice.reducer;
 

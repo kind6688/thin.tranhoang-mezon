@@ -1,5 +1,5 @@
 import { ActionEmitEvent } from '@mezon/mobile-components';
-import { selectCurrentChannel, selectDmGroupCurrentId } from '@mezon/store';
+import { selectCurrentChannel, selectDmGroupCurrentId } from '@mezon/store-mobile';
 import { ChannelStreamMode } from 'mezon-js';
 import { memo, useEffect, useRef } from 'react';
 import { DeviceEventEmitter } from 'react-native';
@@ -15,6 +15,7 @@ export const ChatBoxListenerComponent = memo(({ mode }: IChatMessageLeftAreaProp
 	const currentDirectId = useSelector(selectDmGroupCurrentId);
 
 	const listMentions = UseMentionList({
+		channelDetail: currentChannel,
 		channelID: currentDirectId
 			? currentDirectId
 			: mode === ChannelStreamMode.STREAM_MODE_THREAD && currentChannel?.parent_id

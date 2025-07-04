@@ -110,7 +110,7 @@ function MessageContextMenu({
 	const dmGroupChatList = useSelector(selectAllDirectMessages);
 	const currentChannel = useSelector(selectCurrentChannel);
 	const currentClanId = useSelector(selectCurrentClanId);
-	const listPinMessages = useSelector(selectPinMessageByChannelId(currentChannel?.id));
+	const listPinMessages = useAppSelector((state) => selectPinMessageByChannelId(state, currentChannel?.id as string));
 	const currentDmId = useSelector(selectDmGroupCurrentId);
 	const isClanView = useSelector(selectClanView);
 	const currentTopicId = useSelector(selectCurrentTopicId);
@@ -385,7 +385,7 @@ function MessageContextMenu({
 		setIsShowCreateThread(true);
 		setOpenThreadMessageState(true);
 		dispatch(threadsActions.setOpenThreadMessageState(true));
-		setValueThread(message);
+		setValueThread({ ...message, references: [] });
 	}, [dispatch, message, setIsShowCreateThread, setOpenThreadMessageState, setValueThread]);
 
 	const handleCreateTopic = useCallback(() => {
@@ -519,8 +519,8 @@ function MessageContextMenu({
 	}, [checkElementIsImage, isClickedEmoji, isClickedSticker]);
 
 	const sendTransactionMessage = useCallback(
-		async (userId: string, username?: string, avatar?: string) => {
-			const response = await createDirectMessageWithUser(userId, username, avatar);
+		async (userId: string, display_name?: string, username?: string, avatar?: string) => {
+			const response = await createDirectMessageWithUser(userId, display_name, username, avatar);
 			if (response.channel_id) {
 				const channelMode = ChannelStreamMode.STREAM_MODE_DM;
 				sendInviteMessage(
@@ -584,7 +584,12 @@ function MessageContextMenu({
 									channelIdOnMessage: message?.channel_id
 								});
 
-								await sendTransactionMessage(message.sender_id || '', message.user?.name || message.user?.username, message.avatar);
+								await sendTransactionMessage(
+									message.sender_id || '',
+									message.user?.name,
+									message.user?.name || message.user?.username,
+									message.avatar
+								);
 							}
 						} catch (error) {
 							console.error('Failed to give cofffee message', error);

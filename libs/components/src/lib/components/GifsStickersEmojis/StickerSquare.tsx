@@ -25,7 +25,14 @@ type ChannelMessageBoxProps = {
 };
 
 interface ICategorizedStickerProps {
-	stickerList: any[];
+	stickerList: {
+		id: string | undefined;
+		url: string | undefined;
+		type: string | undefined;
+		clanName: string | undefined;
+		clanId: string | undefined;
+		forSale: boolean | undefined;
+	}[];
 	categoryName: string;
 	onClickSticker: (stickerUrl: StickerPanel) => void;
 	valueInputToCheckHandleSearch?: string;
@@ -79,7 +86,7 @@ function StickerSquare({ channel, mode, onClose, isTopic = false }: ChannelMessa
 
 	const categoryLogo = useMemo(() => {
 		const categorizedStickers = clanStickers
-			.filter((sticker) => sticker.clan_name !== FOR_SALE_CATE)
+			.filter((sticker) => !sticker.is_for_sale)
 			.reduce((acc: { id?: string; type?: string; url?: string }[], sticker) => {
 				if (!acc.some((item) => item.id === sticker.clan_id)) {
 					acc.push({
@@ -230,8 +237,10 @@ const CategorizedStickers: React.FC<ICategorizedStickerProps> = ({
 	valueInputToCheckHandleSearch,
 	onOpenBuySticker
 }) => {
-	const stickersListByCategoryName = stickerList.filter((sticker) => sticker.type === categoryName);
-	const [isShowStickerList, setIsShowStickerList] = useState(true);
+	const stickersListByCategoryName = stickerList.filter((sticker) =>
+		categoryName === FOR_SALE_CATE ? sticker.forSale : sticker.type === categoryName && !sticker.forSale
+	);
+	const [isShowStickerList, setIsShowStickerList] = useState(categoryName === FOR_SALE_CATE ? false : true);
 	const currentClan = useAppSelector(selectCurrentClan);
 
 	const handleToggleButton = () => {
@@ -275,11 +284,17 @@ const StickerPanel: React.FC<IStickerPanelProps> = ({ stickerList, onClickSticke
 									onClick={() => (!sticker.forSale || sticker.url ? onClickSticker(sticker) : onOpenBuySticker(sticker))}
 									role="button"
 								/>
-								{sticker.forSale && !sticker.url && (
-									<div className="absolute left-8 flex items-center justify-center aspect-square pointer-events-none">
-										<Icons.LockIcon defaultSize="w-16 h-16 text-white block group-hover:hidden" defaultFill="white" />
-										<Icons.UnLockIcon defaultSize="w-16 h-16 text-white hidden group-hover:block" defaultFill="white" />
-									</div>
+								{sticker.forSale && (
+									<>
+										{!sticker.url && (
+											<div className="absolute left-8 flex items-center justify-center aspect-square pointer-events-none group">
+												<Icons.LockIcon defaultSize="w-16 h-16 text-white block group-hover:hidden" defaultFill="white" />
+												<Icons.UnLockIcon defaultSize="w-16 h-16 text-white hidden group-hover:block" defaultFill="white" />
+											</div>
+										)}
+
+										<Icons.MarketIcons className="absolute top-1 right-1 w-4 h-4 text-yellow-300" />
+									</>
 								)}
 							</div>
 						))}

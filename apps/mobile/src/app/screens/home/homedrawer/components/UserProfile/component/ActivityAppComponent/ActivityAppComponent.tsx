@@ -1,11 +1,11 @@
 import { Icons } from '@mezon/mobile-components';
 import { size, useTheme } from '@mezon/mobile-ui';
+import { useAppSelector } from '@mezon/store';
 import { selectActivityByUserId } from '@mezon/store-mobile';
 import { ActivitiesName, ActivitiesType } from '@mezon/utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Text, View } from 'react-native';
-import { useSelector } from 'react-redux';
 import { style } from './ActivityAppComponent.styles';
 
 const iconMap: Partial<Record<ActivitiesType, JSX.Element>> = {
@@ -15,7 +15,7 @@ const iconMap: Partial<Record<ActivitiesType, JSX.Element>> = {
 };
 
 function ActivityAppComponent({ userId }: { userId: string }) {
-	const activityByUserId = useSelector(selectActivityByUserId(userId || ''));
+	const activityByUserId = useAppSelector((state) => selectActivityByUserId(state, userId || ''));
 	const { themeValue } = useTheme();
 	const styles = style(themeValue);
 	const { t } = useTranslation(['activityApp']);

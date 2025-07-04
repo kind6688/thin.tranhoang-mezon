@@ -1,7 +1,6 @@
 import { PaperclipIcon, STORAGE_MY_USER_ID, convertTimestampToTimeAgo, load } from '@mezon/mobile-components';
 import { Colors, useTheme } from '@mezon/mobile-ui';
-import { useAppDispatch, useAppSelector } from '@mezon/store';
-import { directActions, selectDirectById, selectIsUnreadDMById } from '@mezon/store-mobile';
+import { directActions, selectDirectById, selectIsUnreadDMById, useAppDispatch, useAppSelector } from '@mezon/store-mobile';
 import { IExtendedMessage, createImgproxyUrl } from '@mezon/utils';
 import { ChannelStreamMode, ChannelType, safeJSONParse } from 'mezon-js';
 import React, { useMemo } from 'react';

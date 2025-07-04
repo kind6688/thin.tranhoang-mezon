@@ -3,12 +3,11 @@ import { createAsyncThunk, createEntityAdapter, createSelector, createSlice, Ent
 
 import { captureSentryError } from '@mezon/logger';
 import { ApiChannelSettingItem } from 'mezon-js/dist/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { ensureSession, getMezonCtx, MezonValueContext } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { RootState } from '../store';
 
 export const SETTING_CLAN_CHANNEL = 'settingClanChannel';
-
-const CHANNEL_SETTING_CLAN_CACHE_TIME = 1000 * 60 * 60;
 
 export interface SettingClanChannelState extends EntityState<ApiChannelSettingItem, string> {
 	loadingStatus: LoadingStatus;
@@ -17,6 +16,7 @@ export interface SettingClanChannelState extends EntityState<ApiChannelSettingIt
 	threadCount: number;
 	threadsByChannel: Record<string, ApiChannelSettingItem[]>;
 	listSearchChannel: ApiChannelSettingItem[];
+	cache?: CacheMetadata;
 }
 
 export const channelSettingAdapter = createEntityAdapter({
@@ -39,31 +39,54 @@ export enum ETypeFetchChannelSetting {
 	SEARCH_CHANNEL = 'SEARCH_CHANNEL'
 }
 
-export const fetchChannelSettingInClanCached = memoizeAndTrack(
-	async (mezon: MezonValueContext, clanId: string, parentId: string, page: number, limit: number, channel_label: string) => {
-		const response = await mezon.client.getChannelSettingInClan(
-			mezon.session,
-			clanId,
-			parentId, // parent_id
-			undefined, // category_id
-			undefined, // private_channel
-			undefined, // active
-			undefined, // status
-			undefined, // type
-			limit, // limit
-			page,
-			channel_label // keyword search
-		);
-		return response;
-	},
-	{
-		promise: true,
-		maxAge: CHANNEL_SETTING_CLAN_CACHE_TIME,
-		normalizer: (args) => {
-			return args[5] + args[4] + args[3] + args[1] + args[2] + args[0]?.session?.username || '';
-		}
+export const fetchChannelSettingInClanCached = async (
+	getState: () => RootState,
+	mezon: MezonValueContext,
+	clanId: string,
+	parentId: string,
+	page: number,
+	limit: number,
+	channel_label: string,
+	noCache = false
+) => {
+	const currentState = getState();
+	const channelSettingState = currentState[SETTING_CLAN_CHANNEL];
+	const apiKey = createApiKey('fetchChannelSettingInClan', clanId, parentId, page, limit, channel_label);
+
+	const shouldForceCall = shouldForceApiCall(apiKey, channelSettingState.cache, noCache);
+
+	if (!shouldForceCall) {
+		return {
+			channel_setting_list: Object.values(channelSettingState.entities),
+			channel_count: channelSettingState.channelCount,
+			thread_count: channelSettingState.threadCount,
+			fromCache: true,
+			time: channelSettingState.cache?.lastFetched || Date.now()
+		};
 	}
-);
+
+	const response = await mezon.client.getChannelSettingInClan(
+		mezon.session,
+		clanId,
+		parentId, // parent_id
+		undefined, // category_id
+		undefined, // private_channel
+		undefined, // active
+		undefined, // status
+		undefined, // type
+		limit, // limit
+		page,
+		channel_label // keyword search
+	);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 interface IFetchChannelSetting {
 	noCache?: boolean;
@@ -80,19 +103,35 @@ export const fetchChannelSettingInClan = createAsyncThunk(
 	async ({ noCache = false, clanId, parentId, page = 1, limit = 10, typeFetch, keyword }: IFetchChannelSetting, thunkAPI) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			if (noCache) {
-				fetchChannelSettingInClanCached.clear();
+
+			const response = await fetchChannelSettingInClanCached(
+				thunkAPI.getState as () => RootState,
+				mezon,
+				clanId,
+				parentId,
+				page,
+				limit,
+				keyword || '',
+				Boolean(noCache)
+			);
+
+			if (!response) {
+				return thunkAPI.rejectWithValue('Invalid fetchChannelSettingInClan');
 			}
 
-			const response = await fetchChannelSettingInClanCached(mezon, clanId, parentId, page, limit, keyword || '');
-			if (response) {
+			if (response.fromCache) {
 				return {
-					parentId: parentId,
-					response: response,
+					fromCache: true,
+					parentId,
 					typeFetch
 				};
 			}
-			throw new Error('Emoji list is undefined or null');
+
+			return {
+				parentId: parentId,
+				response: response,
+				typeFetch
+			};
 		} catch (error) {
 			captureSentryError(error, 'channelSetting/fetchClanChannelSetting');
 			return thunkAPI.rejectWithValue(error);
@@ -107,25 +146,32 @@ export const settingClanChannelSlice = createSlice({
 	extraReducers(builder) {
 		builder
 			.addCase(fetchChannelSettingInClan.fulfilled, (state: SettingClanChannelState, actions) => {
-				state.loadingStatus = 'loaded';
-				switch (actions.payload.typeFetch) {
-					case ETypeFetchChannelSetting.FETCH_CHANNEL:
-						channelSettingAdapter.setAll(state, actions.payload.response.channel_setting_list || []);
-						break;
-					case ETypeFetchChannelSetting.MORE_CHANNEL:
-						channelSettingAdapter.setMany(state, actions.payload.response.channel_setting_list || []);
-						break;
-					case ETypeFetchChannelSetting.FETCH_THREAD:
-						state.threadsByChannel[actions.payload.parentId] = actions.payload.response.channel_setting_list || [];
-						break;
-					case ETypeFetchChannelSetting.SEARCH_CHANNEL:
-						state.listSearchChannel = actions.payload.response.channel_setting_list || [];
-						break;
-					default:
-						channelSettingAdapter.setAll(state, actions.payload.response.channel_setting_list || []);
+				const { fromCache, response } = actions.payload;
+
+				if (!fromCache && response) {
+					state.loadingStatus = 'loaded';
+					switch (actions.payload.typeFetch) {
+						case ETypeFetchChannelSetting.FETCH_CHANNEL:
+							channelSettingAdapter.setAll(state, response.channel_setting_list || []);
+							break;
+						case ETypeFetchChannelSetting.MORE_CHANNEL:
+							channelSettingAdapter.setMany(state, response.channel_setting_list || []);
+							break;
+						case ETypeFetchChannelSetting.FETCH_THREAD:
+							state.threadsByChannel[actions.payload.parentId] = response.channel_setting_list || [];
+							break;
+						case ETypeFetchChannelSetting.SEARCH_CHANNEL:
+							state.listSearchChannel = response.channel_setting_list || [];
+							break;
+						default:
+							channelSettingAdapter.setAll(state, response.channel_setting_list || []);
+					}
+					state.channelCount = response.channel_count || 0;
+					state.threadCount = response.thread_count || 0;
+					state.cache = createCacheMetadata();
 				}
-				state.channelCount = actions.payload.response.channel_count || 0;
-				state.threadCount = actions.payload.response.thread_count || 0;
+
+				state.loadingStatus = 'loaded';
 			})
 			.addCase(fetchChannelSettingInClan.pending, (state: SettingClanChannelState) => {
 				state.loadingStatus = 'loading';

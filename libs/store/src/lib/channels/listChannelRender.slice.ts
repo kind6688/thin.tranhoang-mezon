@@ -56,46 +56,42 @@ export const listChannelRenderSlice = createSlice({
 			const { listChannel, listCategory, clanId, listChannelFavor, isMobile } = action.payload;
 			// Prioritize moving channel forward thread
 			const listChannelPriority = prioritizeChannel(listChannel);
-			if (!state.listChannelRender[clanId] || isMobile) {
-				const listChannelRender: (ICategoryChannel | IChannel)[] = [];
-				const listFavorChannel: IChannel[] = [];
-				listCategory.map((category) => {
-					const categoryChannels = sortChannels(listChannelPriority, category.id);
-					const listChannelIds = categoryChannels.map((channel) => channel.id);
-					const categoryWithChannels: ICategoryChannel = {
-						...category,
-						channels: listChannelIds
-					};
-
-					listChannelRender.push(categoryWithChannels);
-					categoryChannels.forEach((channel) => {
-						if (listChannelFavor.includes(channel.id)) {
-							listFavorChannel.push({
-								...channel,
-								isFavor: true,
-								category_id: FAVORITE_CATEGORY_ID
-							});
-						}
-						listChannelRender.push(channel);
-					});
-				});
-				const favorCate: ICategoryChannel = {
-					channels: listChannelFavor,
-					id: FAVORITE_CATEGORY_ID,
-					category_id: FAVORITE_CATEGORY_ID,
-					category_name: 'Favorite Channel',
-					clan_id: clanId,
-					creator_id: '0',
-					category_order: 1,
-					isFavor: true
+			const listChannelRender: (ICategoryChannel | IChannel)[] = [];
+			const listFavorChannel: IChannel[] = [];
+			listCategory.map((category) => {
+				const categoryChannels = sortChannels(listChannelPriority, category.id);
+				const listChannelIds = categoryChannels.map((channel) => channel.id);
+				const categoryWithChannels: ICategoryChannel = {
+					...category,
+					channels: listChannelIds
 				};
 
-				state.listChannelRender[clanId] = [favorCate, ...listFavorChannel, ...listChannelRender];
-			}
+				listChannelRender.push(categoryWithChannels);
+				categoryChannels.forEach((channel) => {
+					if (listChannelFavor.includes(channel.id)) {
+						listFavorChannel.push({
+							...channel,
+							isFavor: true,
+							category_id: FAVORITE_CATEGORY_ID
+						});
+					}
+					listChannelRender.push(channel);
+				});
+			});
+			const favorCate: ICategoryChannel = {
+				channels: listChannelFavor,
+				id: FAVORITE_CATEGORY_ID,
+				category_id: FAVORITE_CATEGORY_ID,
+				category_name: 'Favorite Channel',
+				clan_id: clanId,
+				creator_id: '0',
+				category_order: 1,
+				isFavor: true
+			};
+
+			state.listChannelRender[clanId] = [favorCate, ...listFavorChannel, ...listChannelRender];
 		},
-		clearListChannelRender: (state) => {
-			state.listChannelRender = {};
-		},
+
 		addChannelToListRender: (state, action: PayloadAction<ApiChannelDescription>) => {
 			const channelData: IChannel = {
 				...(action.payload as IChannel),

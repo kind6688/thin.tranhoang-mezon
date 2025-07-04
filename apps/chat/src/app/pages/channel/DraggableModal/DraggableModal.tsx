@@ -87,13 +87,14 @@ const DraggableModalTabs: React.FC<DraggableModalTabsProps> = ({
 	);
 
 	const handleCloseAllTabs = useCallback(
-		(event: React.MouseEvent) => {
+		async (event: React.MouseEvent) => {
 			event.stopPropagation();
 
 			const curClanId = selectCurrentClanId(store.getState());
 			dispatch(channelsActions.resetAppChannelsListShowOnPopUp({ clanId: curClanId as string }));
+			appChannelList.forEach((item) => handleOnCloseCallback(event, curClanId as string, item.channel_id as string));
 		},
-		[dispatch]
+		[dispatch, handleOnCloseCallback, appChannelList]
 	);
 
 	const handlePlusClick = useCallback(

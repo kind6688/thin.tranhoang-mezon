@@ -20,7 +20,6 @@ import { format } from 'date-fns';
 import { Dropdown } from 'flowbite-react';
 import { ChannelType } from 'mezon-js';
 import { useCallback, useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
 import ModalConfirm from '../ModalConfirm';
 import ItemPanel from '../PanelChannel/ItemPanel';
 import ItemPanelMember from './ItemPanelMember';
@@ -37,7 +36,7 @@ const PanelGroupDM = ({ isDmGroupOwner, dmGroupId, lastOne }: PanelGroupDMPProps
 	const channel = useAppSelector((state) => selectDirectById(state, dmGroupId || ''));
 	const { navigate } = useAppNavigation();
 	const [popupLeave, setPopupLeave] = useState<boolean>(false);
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(dmGroupId || ''));
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, dmGroupId || ''));
 	const [nameChildren, setNameChildren] = useState('');
 	const [mutedUntil, setmutedUntil] = useState('');
 	const handleLeaveDmGroup = async () => {

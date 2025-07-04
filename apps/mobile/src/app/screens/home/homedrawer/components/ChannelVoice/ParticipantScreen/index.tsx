@@ -1,8 +1,7 @@
 import { VideoTrack } from '@livekit/react-native';
 import { Icons } from '@mezon/mobile-components';
 import { size, useTheme } from '@mezon/mobile-ui';
-import { selectIsPiPMode, useAppSelector } from '@mezon/store';
-import { selectMemberClanByUserName } from '@mezon/store-mobile';
+import { selectIsPiPMode, selectMemberClanByUserName, useAppSelector } from '@mezon/store-mobile';
 import { Track } from 'livekit-client';
 import React, { useMemo } from 'react';
 import { Platform, ScrollView, Text, TouchableOpacity, View } from 'react-native';

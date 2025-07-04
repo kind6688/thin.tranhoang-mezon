@@ -2,8 +2,9 @@ import { captureSentryError } from '@mezon/logger';
 import { IUsers, LoadingStatus } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ApiUser } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-import { memoizeAndTrack } from '../memoize';
+import { RootState } from '../store';
 
 export const LIST_USERS_BY_USER_FEATURE_KEY = 'listusersbyuserid';
 
@@ -21,6 +22,7 @@ export const mapUsersToEntity = (userRes: ApiUser) => {
 export interface ListUsersState extends EntityState<UsersEntity, string> {
 	loadingStatus: LoadingStatus;
 	error?: string | null;
+	cache?: CacheMetadata;
 }
 
 export const listUsersAdapter = createEntityAdapter<UsersEntity>();
@@ -29,34 +31,53 @@ export interface ListUsersRootState {
 	[LIST_USERS_BY_USER_FEATURE_KEY]: ListUsersState;
 }
 
-export const fetchListUsersByUserCached = memoizeAndTrack(
-	async (mezon: MezonValueContext) => {
-		const response = await mezon.client.listUserClansByUserId(mezon.session);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: 1000 * 60 * 60,
-		normalizer: (args) => {
-			return args[0].session.username || '';
-		}
+export const fetchListUsersByUserCached = async (getState: () => RootState, mezon: MezonValueContext, noCache = false) => {
+	const currentState = getState();
+	const usersData = currentState[LIST_USERS_BY_USER_FEATURE_KEY];
+	const apiKey = createApiKey('fetchListUsersByUser', mezon.session.username || '');
+
+	const shouldForceCall = shouldForceApiCall(apiKey, usersData?.cache, noCache);
+
+	if (!shouldForceCall) {
+		return {
+			users: selectAll(usersData),
+			fromCache: true,
+			time: usersData.cache?.lastFetched || Date.now()
+		};
 	}
-);
+
+	const response = await mezon.client.listUserClansByUserId(mezon.session);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 export const fetchListUsersByUser = createAsyncThunk(
 	'usersByUser/fetchListUsersByUser',
 	async ({ noCache = false }: { noCache?: boolean }, thunkAPI) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			if (noCache) {
-				fetchListUsersByUserCached.delete(mezon);
+
+			const response = await fetchListUsersByUserCached(thunkAPI.getState as () => RootState, mezon, Boolean(noCache));
+
+			if (response?.fromCache) {
+				return {
+					fromCache: true,
+					users: []
+				};
 			}
-			const response = await fetchListUsersByUserCached(mezon);
+
 			if (!response?.users) {
-				return [];
+				return { users: [], fromCache: response.fromCache };
 			}
+
 			const users = response?.users.map(mapUsersToEntity);
-			return users;
+			return { users, fromCache: response.fromCache };
 		} catch (error) {
 			captureSentryError(error, 'usersByUser/fetchListUsersByUser');
 			return thunkAPI.rejectWithValue(error);
@@ -72,21 +93,25 @@ export const initialListUsersByUserState: ListUsersState = listUsersAdapter.getI
 export const listUsersByUserSlice = createSlice({
 	name: LIST_USERS_BY_USER_FEATURE_KEY,
 	initialState: initialListUsersByUserState,
-	reducers: {
-		add: listUsersAdapter.addOne,
-		removeAll: listUsersAdapter.removeAll,
-		remove: listUsersAdapter.removeOne,
-		update: listUsersAdapter.updateOne
-	},
+	reducers: {},
 	extraReducers: (builder) => {
 		builder
 			.addCase(fetchListUsersByUser.pending, (state: ListUsersState) => {
 				state.loadingStatus = 'loading';
 			})
-			.addCase(fetchListUsersByUser.fulfilled, (state: ListUsersState, action: PayloadAction<UsersEntity[]>) => {
-				listUsersAdapter.setAll(state, action.payload);
-				state.loadingStatus = 'loaded';
-			})
+			.addCase(
+				fetchListUsersByUser.fulfilled,
+				(state: ListUsersState, action: PayloadAction<{ users: UsersEntity[]; fromCache?: boolean }>) => {
+					const { users, fromCache } = action.payload;
+
+					if (!fromCache) {
+						listUsersAdapter.setAll(state, users);
+						state.cache = createCacheMetadata();
+					}
+
+					state.loadingStatus = 'loaded';
+				}
+			)
 			.addCase(fetchListUsersByUser.rejected, (state: ListUsersState, action) => {
 				state.loadingStatus = 'error';
 				state.error = action.error.message;

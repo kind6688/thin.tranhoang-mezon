@@ -11,14 +11,12 @@ import {
 	selectCurrentClanId,
 	selectDmGroupCurrentId,
 	selectGrouplMembers,
-	selectSession,
 	useAppDispatch
 } from '@mezon/store-mobile';
 import { useNavigation } from '@react-navigation/native';
 import { ChannelType } from 'mezon-js';
 import React, { useCallback, useEffect } from 'react';
 import { DeviceEventEmitter, Linking, View } from 'react-native';
-import { useSelector } from 'react-redux';
 import { useWebRTCStream } from '../../../components/StreamContext/StreamContext';
 import { APP_SCREEN } from '../../../navigation/ScreenTypes';
 import { linkGoogleMeet } from '../../../utils/helpers';

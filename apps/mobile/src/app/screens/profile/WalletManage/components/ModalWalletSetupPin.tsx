@@ -1,6 +1,6 @@
 import { ActionEmitEvent, save, STORAGE_ENCRYPTED_WALLET } from '@mezon/mobile-components';
 import { size, useTheme } from '@mezon/mobile-ui';
-import { accountActions } from '@mezon/store';
+import { accountActions } from '@mezon/store-mobile';
 import React, { memo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, Text, TextInput, TouchableOpacity, View } from 'react-native';

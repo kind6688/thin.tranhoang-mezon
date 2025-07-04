@@ -89,14 +89,14 @@ const ClanBannerBackground = ({ onUpload, urlImage }: ClanBannerBackgroundProps)
 					</button>
 				</div>
 			</div>
-
-			<ModalValidateFile
-				openModal={openModal}
-				onClose={() => setOpenModal(false)}
-				image="assets/images/file-and-folder.png"
-				title="Only image files are allowed"
-				content="Just upload type file (JPEG, PNG), please!"
-			/>
+			{openModal && (
+				<ModalValidateFile
+					onClose={() => setOpenModal(false)}
+					image="assets/images/file-and-folder.png"
+					title="Only image files are allowed"
+					content="Just upload type file (JPEG, PNG), please!"
+				/>
+			)}
 		</div>
 	);
 };

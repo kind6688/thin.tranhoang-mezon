@@ -1114,10 +1114,9 @@ export type ICanvas = {
 
 export type CanvasUpdate = {
 	content: string;
-	creator_id: string;
-	editor_id: string;
 	id: string;
 	title: string;
+	update_time?: string;
 };
 
 export type IActivity = {

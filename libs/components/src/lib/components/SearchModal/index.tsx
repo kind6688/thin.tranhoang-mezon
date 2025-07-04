@@ -25,19 +25,18 @@ import {
 	removeDuplicatesById,
 	sortFilteredList
 } from '@mezon/utils';
-import { Modal } from 'flowbite-react';
 import debounce from 'lodash.debounce';
 import { ChannelType } from 'mezon-js';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { ModalLayout } from '../../components';
 import { ListGroupSearchModal } from './ListGroupSeacrhModal';
 
 export type SearchModalProps = {
-	readonly open: boolean;
 	onClose: () => void;
 };
 
-function SearchModal({ open, onClose }: SearchModalProps) {
+function SearchModal({ onClose }: SearchModalProps) {
 	const dispatch = useAppDispatch();
 	const allClanUsersEntitiesRef = useRef(useSelector(selectEntitesUserClans));
 	const dmGroupChatListRef = useRef(useAppSelector(selectAllDirectMessages));
@@ -323,14 +322,15 @@ function SearchModal({ open, onClose }: SearchModalProps) {
 	);
 
 	return (
-		<Modal show={open} dismissible={true} onClose={onClose} className="bg-[#111111] bg-opacity-90 focus-visible:[&>*]:outline-none">
-			<Modal.Body className="bg-theme-setting-primary px-6 py-4 rounded-[6px] h-[200px] w-full">
+		<ModalLayout onClose={onClose} className="bg-opacity-90 focus-visible:[&>*]:outline-none">
+			<div className="bg-theme-setting-primary px-6 py-4 rounded-[6px] h-[200px] w-full">
 				<div className="flex flex-col">
 					<InputField
 						type="text"
 						placeholder="Where would you like to go?"
 						className="py-[18px] text-[16px] mt-2 mb-[15px]"
 						onChange={(e) => debouncedSetSearchText(e.target.value)}
+						autoFocus
 					/>
 				</div>
 				<ListGroupSearchModal
@@ -340,8 +340,8 @@ function SearchModal({ open, onClose }: SearchModalProps) {
 					handleItemClick={handleItemClick}
 				/>
 				<FooterNoteModal />
-			</Modal.Body>
-		</Modal>
+			</div>
+		</ModalLayout>
 	);
 }
 

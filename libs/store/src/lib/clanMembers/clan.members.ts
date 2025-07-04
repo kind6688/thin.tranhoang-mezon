@@ -5,7 +5,7 @@ import { safeJSONParse } from 'mezon-js';
 import { ClanUserListClanUser } from 'mezon-js/api.gen';
 import { selectAllAccount } from '../account/account.slice';
 import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
-import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
+import { MezonValueContext, ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 import { RootState } from '../store';
 import { clanMembersMetaActions, extracMeta, selectClanMembersMetaEntities } from './clan.members.meta';
 export const USERS_CLANS_FEATURE_KEY = 'usersClan';
@@ -51,7 +51,7 @@ export const fetchUsersClanCached = async (getState: () => RootState, ensuredMez
 	const apiKey = createApiKey('fetchUsersClan', clanId, ensuredMezon.session.username || '');
 	const shouldForceCall = shouldForceApiCall(apiKey, clanData?.cache, noCache);
 
-	if (!shouldForceCall && clanData?.entities.ids.length > 0) {
+	if (!shouldForceCall) {
 		const cachedUsers = selectCachedMembersByClan(currentState, clanId);
 		return {
 			users: cachedUsers,
@@ -59,7 +59,18 @@ export const fetchUsersClanCached = async (getState: () => RootState, ensuredMez
 		};
 	}
 
-	const response = await ensuredMezon.client.listClanUsers(ensuredMezon.session, clanId);
+	const response = await fetchDataWithSocketFallback(
+		ensuredMezon,
+		{
+			api_name: 'ListClanUsers',
+			list_clan_user_req: {
+				clan_id: clanId
+			}
+		},
+		() => ensuredMezon.client.listClanUsers(ensuredMezon.session, clanId),
+		'clan_user_list'
+	);
+
 	const users = response?.clan_users?.map(mapUsersClanToEntity) || [];
 
 	markApiFirstCalled(apiKey);

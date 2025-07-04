@@ -58,7 +58,7 @@ export const fetchListNotificationCached = async (
 	const apiKey = createApiKey('fetchListNotification', clanId, category || '', notificationId || '');
 	const shouldForceCall = shouldForceApiCall(apiKey, notificationData?.cache, noCache);
 
-	if (!shouldForceCall && notificationData?.data.length > 0) {
+	if (!shouldForceCall) {
 		return {
 			notifications: notificationData.data,
 			fromCache: true

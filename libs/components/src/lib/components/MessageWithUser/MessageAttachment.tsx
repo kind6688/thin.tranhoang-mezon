@@ -146,7 +146,7 @@ const MessageAttachment = ({
 	isInSearchMessage,
 	defaultMaxWidth
 }: MessageAttachmentProps) => {
-	const validateAttachment = (message.attachments || []).filter((attachment) => Object.keys(attachment).length !== 0);
+	const validateAttachment = (message.attachments || [])?.filter((attachment) => Object.keys(attachment).length !== 0);
 	if (!validateAttachment) return null;
 	return (
 		<Attachments

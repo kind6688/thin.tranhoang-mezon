@@ -1,6 +1,5 @@
 import { size, Text, useTheme } from '@mezon/mobile-ui';
-import { selectAllUserChannel } from '@mezon/store';
-import { fetchUserChannels, rolesClanActions, selectRolesByChannelId, useAppDispatch } from '@mezon/store-mobile';
+import { fetchUserChannels, rolesClanActions, selectAllUserChannel, selectRolesByChannelId, useAppDispatch } from '@mezon/store-mobile';
 import { useNavigation } from '@react-navigation/native';
 import { FlashList } from '@shopify/flash-list';
 import { memo, useCallback, useEffect, useMemo } from 'react';

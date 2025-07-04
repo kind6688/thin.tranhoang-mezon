@@ -115,7 +115,7 @@ function EmojiPicker({ onDone, bottomSheetRef, directMessageId = '', messageActi
 		if (type === 'gif') {
 			handleSend({ t: '' }, [], [{ url: data }], isEmpty(messageRef) ? [] : [messageRef]);
 		} else if (type === 'sticker') {
-			const imageUrl = data?.url ? data?.url : `${process.env.NX_BASE_IMG_URL}/stickers/${data?.id}.webp`;
+			const imageUrl = data?.source ? data?.source : `${process.env.NX_BASE_IMG_URL}/stickers/${data?.id}.webp`;
 			handleSend(
 				{ t: '' },
 				[],
@@ -199,7 +199,7 @@ function EmojiPicker({ onDone, bottomSheetRef, directMessageId = '', messageActi
 							<MezonIconCDN icon={IconCDN.magnifyingIcon} height={18} width={18} color={themeValue.text} />
 							<TextInput
 								placeholder={mode === 'sticker' ? t('findThePerfectSticker') : t('findThePerfectGif')}
-								placeholderTextColor={themeValue.text}
+								placeholderTextColor={themeValue.textDisabled}
 								style={styles.textInput}
 								onFocus={handleInputSearchFocus}
 								onChangeText={debouncedSetSearchText}
@@ -234,7 +234,12 @@ function EmojiPicker({ onDone, bottomSheetRef, directMessageId = '', messageActi
 				) : mode === 'gif' ? (
 					<GifSelector onScroll={onScroll} onSelected={(url) => handleSelected('gif', url)} searchText={searchText} />
 				) : (
-					<StickerSelector onScroll={onScroll} onSelected={(sticker) => handleSelected('sticker', sticker)} mediaType={stickerMode} />
+					<StickerSelector
+						onScroll={onScroll}
+						onSelected={(sticker) => handleSelected('sticker', sticker)}
+						mediaType={stickerMode}
+						searchText={searchText}
+					/>
 				)}
 			</View>
 		</TouchableWithoutFeedback>

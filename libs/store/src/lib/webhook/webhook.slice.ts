@@ -1,7 +1,6 @@
 import { captureSentryError } from '@mezon/logger';
 import { LoadingStatus } from '@mezon/utils';
 import { createAsyncThunk, createEntityAdapter, createSelector, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit';
-import memoizee from 'memoizee';
 import { ApiWebhook, ApiWebhookCreateRequest, MezonUpdateWebhookByIdBody } from 'mezon-js/api.gen';
 import { toast } from 'react-toastify';
 import { ensureSession, getMezonCtx, MezonValueContext } from '../helpers';
@@ -35,30 +34,17 @@ export const initialWebhookState: IWebHookState = webhookAdapter.getInitialState
 	webhookList: {}
 });
 
-const LIST_WEBHOOK_CACHED_TIME = 1000 * 60 * 60;
-
-const fetchWebhooksCached = memoizee(
-	async (mezon: MezonValueContext, channelId: string, clanId: string) => {
-		const response = await mezon.client.listWebhookByChannelId(mezon.session, channelId, clanId);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: LIST_WEBHOOK_CACHED_TIME,
-		normalizer: (args) => {
-			return args[2] + args[1] + args[0].session.username;
-		}
-	}
-);
+const fetchWebhooksCached = async (mezon: MezonValueContext, channelId: string, clanId: string) => {
+	const response = await mezon.client.listWebhookByChannelId(mezon.session, channelId, clanId);
+	return { ...response, time: Date.now() };
+};
 
 export const fetchWebhooks = createAsyncThunk(
 	'integration/fetchWebhooks',
 	async ({ channelId, clanId, noCache }: IFetchWebhooksByChannelIdArg, thunkAPI) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			if (noCache) {
-				fetchWebhooksCached.delete(mezon, channelId, clanId);
-			}
+
 			const response = await fetchWebhooksCached(mezon, channelId, clanId);
 			if (Date.now() - response.time > 100) {
 				return {

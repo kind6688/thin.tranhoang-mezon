@@ -447,11 +447,19 @@ const EmojisPanel = React.memo(function EmojisPanel({
 					key={index}
 					className={` relative ${shiftPressedState ? 'border-none outline-none' : ''} text-2xl  emoji-button  rounded-md  dark:hover:bg-[#41434A] hover:bg-bgLightModeButton hover:rounded-md  p-1 flex items-center justify-center w-full aspect-square`}
 					onClick={() => {
-						if (!item.is_for_sale || item.src) {
-							onEmojiSelect(item.id || '', item.shortname || '');
-						} else {
+						if (item.is_for_sale && !item.src) {
 							handleOpenUnlockItem(item);
+							return;
 						}
+
+						if (item.is_for_sale && item.src) {
+							const fileName = item.src.split('/').pop() || '';
+							const idFromSource = fileName.split('.').slice(0, -1).join('.') || '';
+							onEmojiSelect(idFromSource, item.shortname || '');
+							return;
+						}
+
+						onEmojiSelect(item.id || '', item.shortname || '');
 					}}
 					onMouseEnter={() => onEmojiHover(item)}
 				>

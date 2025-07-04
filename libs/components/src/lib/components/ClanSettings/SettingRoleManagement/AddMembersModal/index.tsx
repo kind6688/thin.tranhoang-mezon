@@ -9,7 +9,7 @@ import {
 	setAddMemberRoles,
 	usersClanActions
 } from '@mezon/store';
-import { Icons, InputField } from '@mezon/ui';
+import { ButtonLoading, Icons, InputField } from '@mezon/ui';
 import { ThemeApp, createImgproxyUrl, getAvatarForPrioritize, getNameForPrioritize } from '@mezon/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -98,6 +98,7 @@ export const AddMembersModal: React.FC<ModalProps> = ({ isOpen, RolesClan, onClo
 				updates: userIds.map((id) => ({ userId: id, roleId: selectedRoleId, clanId: currentClan?.id }))
 			})
 		);
+		onClose();
 	}, [selectedRoleId, currentClan, selectedRole, selectedUserIds]);
 
 	useEffect(() => {
@@ -155,16 +156,11 @@ export const AddMembersModal: React.FC<ModalProps> = ({ isOpen, RolesClan, onClo
 						>
 							Cancel
 						</button>
-						<button
-							color="blue"
+						<ButtonLoading
+							label="Add"
 							className="px-4 py-2 bg-blue-700 text-white rounded hover:bg-blue-500 focus:outline-none focus:ring focus:border-blue-300"
-							onClick={() => {
-								handleUpdateRole();
-								onClose();
-							}}
-						>
-							Add
-						</button>
+							onClick={handleUpdateRole}
+						/>
 					</div>
 				</div>
 			</div>

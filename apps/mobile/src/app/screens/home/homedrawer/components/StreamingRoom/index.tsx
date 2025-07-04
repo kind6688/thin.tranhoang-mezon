@@ -7,7 +7,7 @@ import {
 	useAppSelector,
 	usersStreamActions,
 	videoStreamActions
-} from '@mezon/store';
+} from '@mezon/store-mobile';
 import { useNavigation } from '@react-navigation/native';
 import React, { useCallback, useMemo } from 'react';
 import { Dimensions, TouchableOpacity, View } from 'react-native';

@@ -1,7 +1,6 @@
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { size } from '@mezon/mobile-ui';
-import { selectAllClans } from '@mezon/store';
-import { RootState } from '@mezon/store-mobile';
+import { RootState, selectAllClans } from '@mezon/store-mobile';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DeviceEventEmitter, Image, Text, TouchableOpacity, View } from 'react-native';

@@ -1,7 +1,8 @@
-import { appActions, channelsActions, clansActions, emojiSuggestionActions, fetchSystemMessageByClanId, topicsActions } from '@mezon/store';
+import { appActions, channelsActions, clansActions, emojiSuggestionActions, topicsActions } from '@mezon/store';
 import { ModeResponsive } from '@mezon/utils';
 import { ShouldRevalidateFunction } from 'react-router-dom';
 import { CustomLoaderFunction } from './appLoader';
+import { waitForSocketConnection } from './socketUtils';
 
 export type ClanLoaderData = {
 	clanId: string;
@@ -12,11 +13,13 @@ export const clanLoader: CustomLoaderFunction = async ({ params, dispatch }) => 
 	if (!clanId) {
 		throw new Error('Clan ID null');
 	}
+
+	await dispatch(waitForSocketConnection());
+
 	dispatch(emojiSuggestionActions.fetchEmoji({}));
 	dispatch(clansActions.joinClan({ clanId }));
 	dispatch(clansActions.changeCurrentClan({ clanId }));
 	dispatch(channelsActions.setModeResponsive({ clanId, mode: ModeResponsive.MODE_CLAN }));
-	dispatch(fetchSystemMessageByClanId({ clanId }));
 	dispatch(appActions.setIsShowCanvas(false));
 	dispatch(topicsActions.setIsShowCreateTopic(false));
 	dispatch(topicsActions.setCurrentTopicId(''));

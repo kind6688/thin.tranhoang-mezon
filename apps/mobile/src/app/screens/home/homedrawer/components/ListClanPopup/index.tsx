@@ -92,9 +92,9 @@ export const ListClanPopup = React.memo(() => {
 	return (
 		<View style={styles.clansBox}>
 			<NestableDraggableFlatList
-				initialNumToRender={1}
-				maxToRenderPerBatch={1}
-				windowSize={2}
+				initialNumToRender={5}
+				maxToRenderPerBatch={5}
+				windowSize={5}
 				scrollEnabled={true}
 				data={clans?.map?.((clan) => ({ ...clan, key: clan?.id })) || []}
 				keyExtractor={(clan, index) => `${clan?.clan_id}_${index}_clan_item`}

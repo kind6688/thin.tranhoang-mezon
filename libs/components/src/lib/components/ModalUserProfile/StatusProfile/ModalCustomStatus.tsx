@@ -1,12 +1,12 @@
 import { useAppDispatch, userClanProfileActions } from '@mezon/store';
 import { Icons } from '@mezon/ui';
-import { Dropdown, Label, Modal } from 'flowbite-react';
+import { Dropdown } from 'flowbite-react';
 import { ReactNode, useEffect, useState } from 'react';
+import { ModalLayout } from '../../../components';
 
 type ModalCustomStatusProps = {
 	name: string;
-	openModal: boolean;
-	onClose?: () => void;
+	onClose: () => void;
 	customStatus?: string;
 	setCustomStatus: (customStatus: string) => void;
 	handleSaveCustomStatus?: () => void;
@@ -15,7 +15,6 @@ type ModalCustomStatusProps = {
 };
 
 const ModalCustomStatus = ({
-	openModal,
 	name,
 	customStatus,
 	onClose,
@@ -27,10 +26,8 @@ const ModalCustomStatus = ({
 	const dispatch = useAppDispatch();
 
 	useEffect(() => {
-		if (openModal) {
-			dispatch(userClanProfileActions.setShowModalFooterProfile(false));
-		}
-	}, [dispatch, openModal]);
+		dispatch(userClanProfileActions.setShowModalFooterProfile(false));
+	}, []);
 
 	const handleChangeCustomStatus = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const updatedStatus = e.target.value.slice(0, 128).replace(/\\/g, '\\\\');
@@ -55,18 +52,15 @@ const ModalCustomStatus = ({
 	};
 
 	return (
-		<Modal className="bg-bgModalDark" theme={{ content: { base: 'w-[440px]' } }} show={openModal} dismissible={true} onClose={onClose}>
-			<div className="bg-theme-surface pt-4 rounded">
+		<ModalLayout className="bg-bgModalDark" onClose={onClose}>
+			<div className="bg-theme-surface pt-4 rounded w-[440px]">
 				<div>
 					<h1 className="text-theme-primary text-xl font-semibold text-center">Set a custom status</h1>
 				</div>
 				<div className="flex w-full flex-col gap-5 pt-4 bg-theme-surface">
 					<div className="px-4">
 						<div className="mb-2 block">
-							<Label
-								value={`What's cookin', ${name}?`}
-								className=" text-theme-primary  dark:text-[#B5BAC1] text-textLightTheme text-xs uppercase font-semibold"
-							/>
+							<p className="text-theme-primary text-xs uppercase font-semibold">What's cookin', {name}</p>
 						</div>
 						<input
 							type="text"
@@ -74,16 +68,13 @@ const ModalCustomStatus = ({
 							className="text-theme-primary bg-theme-direct-message outline-none w-full h-10 p-[10px] text-base rounded placeholder:text-sm border-theme-primary"
 							placeholder="Support has arrived!"
 							maxLength={128}
+							autoFocus
 							onChange={handleChangeCustomStatus}
 						/>
 					</div>
 					<div className="px-4">
 						<div className="mb-2 block">
-							<Label
-								htmlFor="clearAfter"
-								value="Clear after"
-								className=" text-theme-primary  dark:text-[#B5BAC1] text-textLightTheme text-xs uppercase font-semibold"
-							/>
+							<p className="text-theme-primary text-xs uppercase font-semibold">Clear after</p>
 						</div>
 						<Dropdown
 							trigger="click"
@@ -107,11 +98,9 @@ const ModalCustomStatus = ({
 					</div>
 					<div className="px-4">
 						<div className="mb-2 block">
-							<Label
-								htmlFor="status"
-								value="Status"
-								className=" text-theme-primary dark:text-[#B5BAC1] text-textLightTheme text-xs uppercase font-semibold"
-							/>
+							<label htmlFor="status" className="text-theme-primary text-xs uppercase font-semibold">
+								Status
+							</label>
 						</div>
 						<Dropdown
 							trigger="click"
@@ -150,7 +139,7 @@ const ModalCustomStatus = ({
 					</div>
 				</div>
 			</div>
-		</Modal>
+		</ModalLayout>
 	);
 };
 
@@ -167,17 +156,10 @@ const ItemSelect = ({ children, dropdown, startIcon, onClick }: ItemSelectProps)
 			onClick={onClick}
 			className="flex items-center justify-between h-11 rounded-sm bg-theme-setting-nav text-theme-primary-hover cursor-pointer text-theme-primary bg-item-theme-hover-status px-3"
 		>
-			{startIcon && (
-				<div className="flex items-center justify-center h-[18px] w-[18px] mr-2">
-					{startIcon}
-				</div>
-			)}
-			<li className="text-[14px] w-full list-none leading-[44px] ">
-				{children}
-			</li>
+			{startIcon && <div className="flex items-center justify-center h-[18px] w-[18px] mr-2">{startIcon}</div>}
+			<li className="text-[14px] w-full list-none leading-[44px] ">{children}</li>
 			<Icons.Check className="w-[18px] h-[18px]" />
 		</div>
-
 	);
 };
 

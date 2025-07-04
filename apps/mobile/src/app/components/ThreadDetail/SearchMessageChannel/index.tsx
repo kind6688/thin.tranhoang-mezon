@@ -1,6 +1,6 @@
 import { ETypeSearch, IOption, IUerMention } from '@mezon/mobile-components';
 import { useTheme } from '@mezon/mobile-ui';
-import { DirectEntity, searchMessagesActions, selectCurrentClanId, useAppDispatch } from '@mezon/store';
+import { DirectEntity, searchMessagesActions, selectCurrentClanId, useAppDispatch } from '@mezon/store-mobile';
 import { IChannel, SIZE_PAGE_SEARCH, SearchFilter } from '@mezon/utils';
 import { RouteProp } from '@react-navigation/native';
 import { createContext, useCallback, useEffect, useState } from 'react';

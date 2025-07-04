@@ -90,7 +90,7 @@ const PanelMember = ({
 	const [hasClanOwnerPermission, hasAdminPermission] = usePermissionChecker([EPermission.clanOwner, EPermission.administrator]);
 	const memberIsClanOwner = useClanOwnerChecker(member?.user?.id ?? '');
 	const { directId } = useAppParams();
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(directMessageValue?.dmID || ''));
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, directMessageValue?.dmID || ''));
 	const [nameChildren, setNameChildren] = useState('');
 	const [mutedUntil, setmutedUntil] = useState('');
 	const hasKeyE2ee = useSelector(selectHasKeyE2ee);

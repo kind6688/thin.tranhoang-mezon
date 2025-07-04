@@ -1,11 +1,11 @@
 import { captureSentryError } from '@mezon/logger';
 import { AnswerByClanArgs, DONE_ONBOARDING_STATUS } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
-import memoizee from 'memoizee';
 import { ApiOnboardingContent, ApiOnboardingItem, ApiOnboardingSteps } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { clansActions } from '../clans/clans.slice';
 import { MezonValueContext, ensureSession, getMezonCtx } from '../helpers';
-const LIST_THREADS_CACHED_TIME = 1000 * 60 * 60;
+import { RootState } from '../store';
 
 export const ONBOARDING_FEATURE_KEY = 'ONBOARDING_FEATURE_KEY';
 
@@ -23,6 +23,7 @@ export type OnboardingClanType = {
 export interface RuleType extends ApiOnboardingContent {
 	file?: File;
 }
+
 export interface OnboardingState extends EntityState<ApiOnboardingSteps, string> {
 	onboardingPreviewMode: boolean;
 	missionDone: number;
@@ -38,40 +39,71 @@ export interface OnboardingState extends EntityState<ApiOnboardingSteps, string>
 	fileRules: Record<number, File>;
 	keepAnswers: Record<string, number[]>;
 	answerByClanId: Record<string, AnswerByClanArgs[] | null>;
+	onboardingCache: Record<
+		string,
+		{
+			onboarding?: ApiOnboardingItem[];
+			cache?: CacheMetadata;
+		}
+	>;
+	onboardingStepCache?: CacheMetadata;
 }
 
 export const onboardingUserAdapter = createEntityAdapter({
 	selectId: (a: ApiOnboardingSteps) => a.clan_id || ''
 });
 
-const fetchOnboardingCached = memoizee(
-	async (mezon: MezonValueContext, clan_id: string) => {
-		const response = await mezon.client.listOnboarding(mezon.session, clan_id, undefined, 100);
-		return response.list_onboarding;
-	},
-	{
-		promise: true,
-		maxAge: LIST_THREADS_CACHED_TIME,
-		normalizer: (args) => {
-			return args[1] + args[0].session.username;
-		}
+const getInitialOnboardingState = () => ({
+	onboarding: []
+});
+
+export const fetchOnboardingCached = async (getState: () => RootState, mezon: MezonValueContext, clan_id: string, noCache = false) => {
+	const currentState = getState();
+	const onboardingState = currentState[ONBOARDING_FEATURE_KEY];
+	const clanData = onboardingState.onboardingCache[clan_id] || getInitialOnboardingState();
+
+	const apiKey = createApiKey('fetchOnboarding', clan_id, mezon.session.username || '');
+
+	const shouldForceCall = shouldForceApiCall(apiKey, clanData.cache, noCache);
+
+	if (!shouldForceCall && clanData.onboarding?.length) {
+		return {
+			list_onboarding: clanData.onboarding,
+			fromCache: true,
+			time: clanData.cache?.lastFetched || Date.now()
+		};
 	}
-);
+
+	const response = await mezon.client.listOnboarding(mezon.session, clan_id, undefined, 100);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		list_onboarding: response.list_onboarding,
+		fromCache: false,
+		time: Date.now()
+	};
+};
 
 export const fetchOnboarding = createAsyncThunk(
 	'onboarding/fetchOnboarding',
 	async ({ clan_id, noCache }: { clan_id: string; noCache?: boolean }, thunkAPI) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			if (noCache) {
-				fetchOnboardingCached.delete(mezon, clan_id);
-			}
-			const response = await fetchOnboardingCached(mezon, clan_id);
+			const response = await fetchOnboardingCached(thunkAPI.getState as () => RootState, mezon, clan_id, Boolean(noCache));
 
-			if (response) {
-				return { response, clan_id };
+			if (response.list_onboarding) {
+				return {
+					response: response.list_onboarding,
+					clan_id,
+					fromCache: response.fromCache
+				};
 			}
-			return { response: [], clan_id };
+			return {
+				response: [],
+				clan_id,
+				fromCache: response.fromCache
+			};
 		} catch (error) {
 			captureSentryError(error, 'onboarding/fetchOnboarding');
 			return thunkAPI.rejectWithValue(error);
@@ -174,35 +206,57 @@ export const enableOnboarding = createAsyncThunk(
 	}
 );
 
-const fetchOnboardingStepCached = memoizee(
-	async (mezon: MezonValueContext, clan_id?: string) => {
-		const response = await mezon.client.listOnboardingStep(mezon.session, clan_id);
-		return response.list_onboarding_step || [];
-	},
-	{
-		promise: true,
-		maxAge: LIST_THREADS_CACHED_TIME,
-		normalizer: (args) => {
-			return args[0].session.username || '' + args[1] || '';
+export const fetchOnboardingStepCached = async (getState: () => RootState, mezon: MezonValueContext, clan_id?: string, noCache = false) => {
+	const currentState = getState();
+	const onboardingState = currentState[ONBOARDING_FEATURE_KEY];
+
+	const apiKey = createApiKey('fetchOnboardingStep', mezon.session.username || '', clan_id || '');
+
+	const shouldForceCall = shouldForceApiCall(apiKey, onboardingState.onboardingStepCache, noCache);
+
+	if (!shouldForceCall && onboardingState.entities && Object.keys(onboardingState.entities).length > 0) {
+		return {
+			list_onboarding_step: Object.values(onboardingState.entities).filter(Boolean),
+			fromCache: true,
+			time: onboardingState.onboardingStepCache?.lastFetched || Date.now()
+		};
+	}
+
+	const response = await mezon.client.listOnboardingStep(mezon.session, clan_id);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		list_onboarding_step: response.list_onboarding_step || [],
+		fromCache: false,
+		time: Date.now()
+	};
+};
+
+export const fetchProcessingOnboarding = createAsyncThunk(
+	'onboarding/fetchProcessing',
+	async ({ clan_id, noCache }: { clan_id?: string; noCache?: boolean } = {}, thunkAPI) => {
+		try {
+			const mezone = await ensureSession(getMezonCtx(thunkAPI));
+
+			const response = await fetchOnboardingStepCached(thunkAPI.getState as () => RootState, mezone, clan_id, Boolean(noCache));
+			if (!response.list_onboarding_step) {
+				return {
+					steps: [],
+					fromCache: response.fromCache
+				};
+			}
+
+			return {
+				steps: response.list_onboarding_step,
+				fromCache: response.fromCache
+			};
+		} catch (error) {
+			captureSentryError(error, 'clans/updateClans');
+			return thunkAPI.rejectWithValue(error);
 		}
 	}
 );
-
-export const fetchProcessingOnboarding = createAsyncThunk('onboarding/fetchProcessing', async ({ clan_id }: { clan_id?: string }, thunkAPI) => {
-	try {
-		const mezone = await ensureSession(getMezonCtx(thunkAPI));
-
-		const response = await fetchOnboardingStepCached(mezone, clan_id);
-		if (!response) {
-			return [];
-		}
-
-		return response;
-	} catch (error) {
-		captureSentryError(error, 'clans/updateClans');
-		return thunkAPI.rejectWithValue(error);
-	}
-});
 
 export const doneOnboarding = createAsyncThunk('onboarding/doneOnboarding', async ({ clan_id }: { clan_id: string }, thunkAPI) => {
 	try {
@@ -234,7 +288,8 @@ export const initialOnboardingState: OnboardingState = onboardingUserAdapter.get
 	},
 	fileRules: [],
 	keepAnswers: {},
-	answerByClanId: {}
+	answerByClanId: {},
+	onboardingCache: {}
 });
 
 export enum ETypeMission {
@@ -367,14 +422,16 @@ export const onboardingSlice = createSlice({
 	extraReducers: (builder) => {
 		builder
 			.addCase(fetchOnboarding.fulfilled, (state, action) => {
-				if (!Object.prototype.hasOwnProperty.call(state.listOnboarding, action.payload.clan_id)) {
+				const { clan_id, response, fromCache } = action.payload;
+
+				if (!fromCache && !Object.prototype.hasOwnProperty.call(state.listOnboarding, clan_id)) {
 					const onboardingClan: OnboardingClanType = {
 						greeting: undefined,
 						mission: [],
 						question: [],
 						rule: []
 					};
-					action.payload.response.map((onboardingItem) => {
+					response.map((onboardingItem) => {
 						switch (onboardingItem.guide_type) {
 							case EGuideType.GREETING:
 								onboardingClan.greeting = onboardingItem;
@@ -391,9 +448,21 @@ export const onboardingSlice = createSlice({
 							default:
 								break;
 						}
-						state.listOnboarding[action.payload.clan_id] = onboardingClan;
-						state.missionSum = onboardingClan.mission.length;
 					});
+
+					state.listOnboarding[clan_id] = onboardingClan;
+					state.missionSum = onboardingClan.mission.length;
+
+					if (!state.onboardingCache[clan_id]) {
+						state.onboardingCache[clan_id] = getInitialOnboardingState();
+					}
+
+					state.onboardingCache[clan_id].onboarding = response;
+					state.onboardingCache[clan_id].cache = {
+						lastFetched: Date.now(),
+						expiresAt: Date.now() + 1000 * 60 * 60,
+						isFirstLoad: false
+					};
 				}
 			})
 			.addCase(createOnboardingTask.fulfilled, (state, action) => {
@@ -468,8 +537,13 @@ export const onboardingSlice = createSlice({
 				}
 			})
 			.addCase(fetchProcessingOnboarding.fulfilled, (state, action) => {
-				if (action.payload) {
-					onboardingUserAdapter.setAll(state, action.payload);
+				if (action.payload && !action.payload.fromCache) {
+					onboardingUserAdapter.setAll(state, action.payload.steps);
+					state.onboardingStepCache = {
+						lastFetched: Date.now(),
+						expiresAt: Date.now() + 1000 * 60 * 60,
+						isFirstLoad: false
+					};
 				}
 			})
 			.addCase(editOnboarding.fulfilled, (state, action) => {

@@ -1,14 +1,12 @@
 import { captureSentryError } from '@mezon/logger';
 import { IMessageWithUser, IThread, LIMIT, LoadingStatus, sortChannelsByLastActivity, ThreadStatus, TypeCheck } from '@mezon/utils';
 import { createAsyncThunk, createEntityAdapter, createSelector, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit';
-import memoizee from 'memoizee';
-import { ApiChannelDescList, ApiChannelDescription } from 'mezon-js/api.gen';
+import { ApiChannelDescription } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { channelsActions } from '../channels/channels.slice';
 import { listChannelRenderAction } from '../channels/listChannelRender.slice';
 import { ensureSession, ensureSocket, getMezonCtx, MezonValueContext } from '../helpers';
 import { RootState } from '../store';
-
-const LIST_THREADS_CACHED_TIME = 1000 * 60 * 60;
 
 export const THREADS_FEATURE_KEY = 'threads';
 
@@ -20,6 +18,13 @@ export interface ThreadsEntity extends IThread {
 }
 
 export interface ThreadsState extends EntityState<ThreadsEntity, string> {
+	byChannels: Record<
+		string,
+		{
+			threads?: ThreadsEntity[];
+			cache?: CacheMetadata;
+		}
+	>;
 	loadingStatus: LoadingStatus;
 	error?: string | null;
 	isShowCreateThread?: Record<string, boolean>;
@@ -73,31 +78,38 @@ export interface FetchThreadsArgs {
 	page?: number;
 }
 
-const fetchThreadsCached = memoizee(
-	async (mezon: MezonValueContext, channelId: string, clanId: string, threadId?: string, defaultResponse?: ApiChannelDescList, page?: number) => {
-		if (defaultResponse) {
-			return { ...defaultResponse, time: Date.now() };
-		}
-		const response = await mezon.client.listThreadDescs(mezon.session, channelId, LIMIT, 0, clanId, threadId, page);
-		return { ...response, time: Date.now() };
-	},
-	{
-		promise: true,
-		maxAge: LIST_THREADS_CACHED_TIME,
-		normalizer: (args) => {
-			return args[1] + args[0].session.username + args[3];
-		}
-	}
-);
+export const fetchThreadsCached = async (
+	getState: () => RootState,
+	mezon: MezonValueContext,
+	channelId: string,
+	clanId: string,
+	threadId?: string,
+	page?: number,
+	noCache = false
+) => {
+	const currentState = getState();
+	const threadsState = currentState[THREADS_FEATURE_KEY];
+	const channelData = threadsState.byChannels?.[channelId] || getInitialChannelState();
 
-const updateCacheThread = async (mezon: MezonValueContext, channelId: string, clanId: string, threadIdToLeave: string) => {
-	const response = await fetchThreadsCached(mezon, channelId, clanId);
-	if (response && response.channeldesc) {
-		const updatedChanneldesc = response.channeldesc.filter((thread: ApiChannelDescription) => thread.channel_id !== threadIdToLeave);
-		fetchThreadsCached.delete(mezon, channelId, clanId);
+	const apiKey = createApiKey('fetchThreads', channelId, clanId, mezon.session.username || '', threadId || '', page || 0);
 
-		fetchThreadsCached(mezon, channelId, clanId, undefined, { channeldesc: updatedChanneldesc });
+	const shouldForceCall = shouldForceApiCall(apiKey, channelData.cache, noCache);
+
+	if (!shouldForceCall && channelData?.threads) {
+		return {
+			channeldesc: channelData?.threads || [],
+			fromCache: true,
+			time: channelData.cache?.lastFetched || Date.now()
+		};
 	}
+	const response = await mezon.client.listThreadDescs(mezon.session, channelId, LIMIT, 0, clanId, threadId, page);
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
 };
 
 const updateCacheOnThreadCreation = createAsyncThunk(
@@ -108,12 +120,9 @@ const updateCacheOnThreadCreation = createAsyncThunk(
 	) => {
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
-			await fetchThreadsCached.delete(mezon, channelId, clanId);
-			const threads = await fetchThreadsCached(mezon, channelId, clanId, undefined, {
-				channeldesc: defaultThreadList || []
-			});
+			const threads = await fetchThreadsCached(thunkAPI.getState as () => RootState, mezon, channelId, clanId, undefined, undefined, true);
 
-			return mapToThreadEntity(threads.channeldesc || []);
+			return mapToThreadEntity((threads.channeldesc as ApiChannelDescription[]) || []);
 		} catch (e) {
 			console.error(e);
 		}
@@ -130,17 +139,21 @@ const mapToThreadEntity = (threads: ApiChannelDescription[]) => {
 export const fetchThreads = createAsyncThunk('threads/fetchThreads', async ({ channelId, clanId, noCache, page }: FetchThreadsArgs, thunkAPI) => {
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
-		if (noCache) {
-			fetchThreadsCached.delete(mezon, channelId, clanId);
-		}
-		const response = await fetchThreadsCached(mezon, channelId, clanId, undefined, undefined, page);
-		fetchThreadsCached(mezon, channelId, clanId, undefined, { channeldesc: response.channeldesc });
+		const response = await fetchThreadsCached(thunkAPI.getState as () => RootState, mezon, channelId, clanId, undefined, page, Boolean(noCache));
 
 		if (!response.channeldesc) {
-			return [];
+			return {
+				channelId,
+				threads: [],
+				fromCache: response.fromCache || false
+			};
 		}
-		const threads = mapToThreadEntity(response.channeldesc);
-		return threads;
+		const threads = mapToThreadEntity(response.channeldesc as ApiChannelDescription[]);
+		return {
+			channelId,
+			threads,
+			fromCache: response.fromCache || false
+		};
 	} catch (error) {
 		captureSentryError(error, 'threads/fetchThreads');
 		return thunkAPI.rejectWithValue(error);
@@ -176,26 +189,44 @@ export const searchedThreads = createAsyncThunk('threads/searchThreads', async (
 	}
 });
 
-export const fetchThread = createAsyncThunk('threads/fetchThreads', async ({ channelId, clanId, threadId, noCache }: FetchThreadsArgs, thunkAPI) => {
+export const fetchThread = createAsyncThunk('threads/fetchThread', async ({ channelId, clanId, threadId, noCache }: FetchThreadsArgs, thunkAPI) => {
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
-		if (noCache) {
-			fetchThreadsCached.delete(mezon, channelId, clanId, threadId);
-		}
-		const response = await fetchThreadsCached(mezon, channelId, clanId, threadId);
+		const response = await fetchThreadsCached(
+			thunkAPI.getState as () => RootState,
+			mezon,
+			channelId,
+			clanId,
+			threadId,
+			undefined,
+			Boolean(noCache)
+		);
 		if (!response.channeldesc) {
-			return [];
+			return {
+				channelId,
+				threads: [],
+				fromCache: response.fromCache || false
+			};
 		}
 
-		const threads = mapToThreadEntity(response.channeldesc);
-		return threads;
+		const threads = mapToThreadEntity(response.channeldesc as ApiChannelDescription[]);
+		return {
+			channelId,
+			threads,
+			fromCache: response.fromCache || false
+		};
 	} catch (error) {
-		captureSentryError(error, 'threads/fetchThreads');
+		captureSentryError(error, 'threads/fetchThread');
 		return thunkAPI.rejectWithValue(error);
 	}
 });
 
+const getInitialChannelState = () => ({
+	threads: []
+});
+
 export const initialThreadsState: ThreadsState = threadsAdapter.getInitialState({
+	byChannels: {},
 	loadingStatus: 'not loaded',
 	error: null,
 	isShowCreateThread: {},
@@ -235,7 +266,7 @@ export const leaveThread = createAsyncThunk(
 				thunkAPI.dispatch(channelsActions.removeByChannelID({ channelId: threadId, clanId }));
 				thunkAPI.dispatch(threadsActions.remove(threadId));
 				thunkAPI.dispatch(listChannelRenderAction.leaveChannelListRender({ channelId: threadId, clanId }));
-				await updateCacheThread(mezon, channelId, clanId, threadId);
+				thunkAPI.dispatch(threadsActions.removeThreadFromCache({ channelId, threadId }));
 				return threadId;
 			}
 		} catch (error) {
@@ -338,6 +369,14 @@ export const threadsSlice = createSlice({
 				state.inputSearchThread = {};
 			}
 			state.inputSearchThread[channelId] = value;
+		},
+		removeThreadFromCache: (state, action: PayloadAction<{ channelId: string; threadId: string }>) => {
+			const { channelId, threadId } = action.payload;
+			const channelData = state.byChannels[channelId];
+
+			if (channelData && channelData.threads) {
+				channelData.threads = channelData.threads.filter((thread) => thread.id !== threadId);
+			}
 		}
 	},
 	extraReducers: (builder) => {
@@ -345,10 +384,28 @@ export const threadsSlice = createSlice({
 			.addCase(fetchThreads.pending, (state: ThreadsState) => {
 				state.loadingStatus = 'loading';
 			})
-			.addCase(fetchThreads.fulfilled, (state: ThreadsState, action: PayloadAction<any[]>) => {
-				threadsAdapter.setMany(state, action.payload);
-				state.loadingStatus = 'loaded';
-			})
+			.addCase(
+				fetchThreads.fulfilled,
+				(state: ThreadsState, action: PayloadAction<{ channelId: string; threads: ThreadsEntity[]; fromCache: boolean }>) => {
+					const { channelId, threads, fromCache } = action.payload;
+
+					if (!state?.byChannels) {
+						state.byChannels = {};
+					}
+
+					if (!state.byChannels?.[channelId]) {
+						state.byChannels[channelId] = getInitialChannelState();
+					}
+
+					if (!fromCache) {
+						threadsAdapter.setMany(state, threads);
+						state.byChannels[channelId].threads = threads;
+						state.byChannels[channelId].cache = createCacheMetadata();
+					}
+
+					state.loadingStatus = 'loaded';
+				}
+			)
 			.addCase(fetchThreads.rejected, (state: ThreadsState, action) => {
 				state.loadingStatus = 'error';
 				state.error = action.error.message;

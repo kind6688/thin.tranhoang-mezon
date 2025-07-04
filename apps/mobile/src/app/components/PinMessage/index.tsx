@@ -1,11 +1,11 @@
 import { Metrics, size, useTheme } from '@mezon/mobile-ui';
-import { AppDispatch, PinMessageEntity, pinMessageActions, selectPinMessageByChannelId } from '@mezon/store-mobile';
+import { AppDispatch, PinMessageEntity, pinMessageActions, selectPinMessageByChannelId, useAppSelector } from '@mezon/store-mobile';
 import { IExtendedMessage } from '@mezon/utils';
 import { safeJSONParse } from 'mezon-js';
 import { memo, useEffect } from 'react';
 import { Dimensions, Platform, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch } from 'react-redux';
 import useTabletLandscape from '../../hooks/useTabletLandscape';
 import EmptyPinMessage from './EmptyPinMessage';
 import { style } from './PinMessage';
@@ -15,7 +15,7 @@ const PinMessage = memo(({ currentChannelId }: { currentChannelId: string }) => 
 	const isTabletLandscape = useTabletLandscape();
 	const { themeValue } = useTheme();
 	const styles = style(themeValue);
-	const listPinMessages = useSelector(selectPinMessageByChannelId(currentChannelId));
+	const listPinMessages = useAppSelector((state) => selectPinMessageByChannelId(state, currentChannelId as string));
 	const dispatch = useDispatch<AppDispatch>();
 
 	useEffect(() => {

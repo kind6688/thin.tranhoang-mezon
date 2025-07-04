@@ -14,7 +14,6 @@ import {
 	selectIsShowEmptyCategory,
 	selectListChannelRenderByClanId,
 	selectStatusStream,
-	selectTheme,
 	selectVoiceJoined,
 	useAppDispatch,
 	useAppSelector
@@ -45,10 +44,10 @@ export type CategoriesState = Record<string, boolean>;
 const clanTopbarEle = 50;
 
 function ChannelList() {
-	const appearanceTheme = useSelector(selectTheme);
 	const isOpenModal = useAppSelector((state) => selectIsOpenCreateNewChannel(state));
 	const [openCreateChannel, closeCreateChannel] = useModal(() => <CreateNewChannelModal />, []);
 	const currentClan = useSelector(selectCurrentClan);
+	const listChannelRender = useAppSelector((state) => selectListChannelRenderByClanId(state, currentClan?.clan_id));
 
 	const userId = useSelector(selectCurrentUserId);
 	const [hasAdminPermission, hasClanPermission, hasChannelManagePermission] = usePermissionChecker([
@@ -75,10 +74,23 @@ function ChannelList() {
 		}
 	}, [isOpenModal]);
 
+	const shouldShowSkeleton = !listChannelRender || listChannelRender?.length === 0;
+
 	return (
 		<div onContextMenu={(event) => event.preventDefault()} id="channelList" className="contain-strict h-full">
-			<div className={`flex-1 space-y-[21px] text-gray-300`}>
-				<RowVirtualizerDynamic permissions={permissions} />
+			<hr className="h-[0.08px] w-full dark:border-borderDivider border-white mx-2" />
+			<div className={`flex-1 space-y-[21px] text-gray-300 relative`}>
+				<div
+					className={`absolute inset-0 transition-opacity duration-300 ${shouldShowSkeleton ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+				>
+					<ChannelListSkeleton />
+				</div>
+
+				<div
+					className={`transition-opacity duration-300 ${shouldShowSkeleton ? 'opacity-0 pointer-events-none' : 'opacity-100 pointer-events-auto'}`}
+				>
+					<RowVirtualizerDynamic permissions={permissions} />
+				</div>
 			</div>
 		</div>
 	);
@@ -421,3 +433,47 @@ const ChannelListMem = memo(ChannelList, () => true);
 ChannelListMem.displayName = 'ChannelListMem';
 
 export default ChannelListMem;
+
+const ChannelListSkeleton = memo(() => {
+	return (
+		<div className="px-2 py-1 space-y-3">
+			<div className="h-[136px] dark:bg-skeleton-dark bg-skeleton-white rounded-md animate-pulse" />
+
+			<div className="space-y-2 p-2">
+				<div className="h-4 dark:bg-skeleton-dark bg-skeleton-white rounded w-20 animate-pulse" />
+			</div>
+
+			{Array.from({ length: 3 }).map((_, categoryIndex) => (
+				<div key={`category-${categoryIndex}`} className="space-y-2">
+					<div className="flex items-center justify-between px-2">
+						<div className="flex items-center space-x-2">
+							<div className="w-3 h-3 dark:bg-skeleton-dark bg-skeleton-white rounded animate-pulse" />
+							<div className="h-3 dark:bg-skeleton-dark bg-skeleton-white rounded w-24 animate-pulse" />
+						</div>
+					</div>
+
+					{Array.from({ length: 4 }).map((_, channelIndex) => (
+						<div key={`channel-${categoryIndex}-${channelIndex}`} className="flex items-center space-x-3 px-6 py-1">
+							<div className="w-4 h-4 dark:bg-skeleton-dark bg-skeleton-white rounded animate-pulse" />
+							<div
+								className="h-4 dark:bg-skeleton-dark bg-skeleton-white rounded animate-pulse"
+								style={{ width: `${60 + Math.random() * 40}%` }}
+							/>
+							<div className="w-5 h-4 dark:bg-skeleton-dark bg-skeleton-white rounded animate-pulse" />
+						</div>
+					))}
+				</div>
+			))}
+
+			{Array.from({ length: 2 }).map((_, index) => (
+				<div key={`single-channel-${index}`} className="flex items-center space-x-3 px-2 py-1">
+					<div className="w-4 h-4 dark:bg-skeleton-dark bg-skeleton-white rounded animate-pulse" />
+					<div
+						className="h-4 dark:bg-skeleton-dark bg-skeleton-white rounded animate-pulse"
+						style={{ width: `${50 + Math.random() * 30}%` }}
+					/>
+				</div>
+			))}
+		</div>
+	);
+});

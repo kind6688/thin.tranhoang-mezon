@@ -2,7 +2,7 @@ import { captureSentryError } from '@mezon/logger';
 import { IChannelMember, IUserStream, LoadingStatus } from '@mezon/utils';
 import { EntityState, PayloadAction, createAsyncThunk, createEntityAdapter, createSelector, createSlice } from '@reduxjs/toolkit';
 import { ChannelType } from 'mezon-js';
-import { ensureSession, getMezonCtx } from '../helpers';
+import { ensureSession, fetchDataWithSocketFallback, getMezonCtx } from '../helpers';
 
 export const USERS_STREAM_FEATURE_KEY = 'usersstream';
 
@@ -35,7 +35,21 @@ export const fetchStreamChannelMembers = createAsyncThunk(
 		try {
 			const mezon = await ensureSession(getMezonCtx(thunkAPI));
 
-			const response = await mezon.client.listStreamingChannelUsers(mezon.session, clanId, channelId, channelType, 1, 100, '');
+			const response = await fetchDataWithSocketFallback(
+				mezon,
+				{
+					api_name: 'ListStreamingChannelUsers',
+					list_channel_users_req: {
+						limit: 100,
+						state: 1,
+						channel_type: channelType,
+						clan_id: clanId
+					}
+				},
+				() => mezon.client.listStreamingChannelUsers(mezon.session, clanId, channelId, channelType, 1, 100, ''),
+				'voice_user_list'
+			);
+
 			if (!response.streaming_channel_users) {
 				return [];
 			}

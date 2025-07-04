@@ -153,7 +153,7 @@ const AppDirectory = () => {
 						<p className="text-sm">Check out our starter guide to get familiar with all the cool things apps can do!</p>
 					</div>
 					<div className="px-8 items-center flex">
-						<Button label="Learn More" className="h-10" />
+						<Button>Learn More</Button>
 					</div>
 				</div>
 			</div>

@@ -1,5 +1,5 @@
 import { useEscapeKeyClose, useOnClickOutside } from '@mezon/core';
-import { attachmentActions, selectAllListDocumentByChannel, selectCurrentChannel, selectTheme, useAppDispatch } from '@mezon/store';
+import { attachmentActions, selectAllListDocumentByChannel, selectCurrentChannel, selectTheme, useAppDispatch, useAppSelector } from '@mezon/store';
 import { Icons } from '@mezon/ui';
 import { RefObject, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
@@ -18,7 +18,7 @@ const FileModal = ({ onClose, rootRef }: FileModalProps) => {
 	const [keywordSearch, setKeywordSearch] = useState('');
 
 	const appearanceTheme = useSelector(selectTheme);
-	const allAttachments = useSelector(selectAllListDocumentByChannel((currentChannel?.channel_id ?? '') as string));
+	const allAttachments = useAppSelector((state) => selectAllListDocumentByChannel(state, (currentChannel?.channel_id ?? '') as string));
 	const modalRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {

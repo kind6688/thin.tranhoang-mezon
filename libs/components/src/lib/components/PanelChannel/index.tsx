@@ -90,7 +90,9 @@ export const getNotificationLabel = (value: NotificationType) => {
 };
 
 const PanelChannel = ({ coords, channel, openSetting, setIsShowPanelChannel, onDeleteChannel, rootRef, selectedChannel, isUnread }: PanelChannel) => {
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(channel.id));
+	const currentChannel = useAppSelector((state) => selectChannelById(state, selectedChannel ?? '')) || {};
+
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, channel?.id || ''));
 	const dispatch = useAppDispatch();
 	const currentChannelId = useSelector(selectCurrentChannelId);
 	const currentClan = useSelector(selectCurrentClan);
@@ -100,11 +102,11 @@ const PanelChannel = ({ coords, channel, openSetting, setIsShowPanelChannel, onD
 	const [nameChildren, setNameChildren] = useState('');
 	const [mutedUntil, setmutedUntil] = useState('');
 	const [defaultNotifiName, setDefaultNotifiName] = useState('');
-	const defaultNotificationCategory = useSelector(selectDefaultNotificationCategory);
+
+	const defaultNotificationCategory = useAppSelector((state) => selectDefaultNotificationCategory(state, channel?.category_id as string));
+
 	const defaultNotificationClan = useSelector(selectDefaultNotificationClan);
 	const isThread = !!channel?.parent_id && channel?.parent_id !== '0';
-
-	const currentChannel = useAppSelector((state) => selectChannelById(state, selectedChannel ?? '')) || {};
 
 	const currentUserId = useSelector(selectCurrentUserId);
 	const currentCategory = useAppSelector((state) => selectCategoryById(state, channel?.category_id as string));

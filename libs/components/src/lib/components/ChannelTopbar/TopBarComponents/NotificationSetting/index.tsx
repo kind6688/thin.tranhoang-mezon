@@ -9,28 +9,29 @@ import {
 	selectDefaultNotificationClan,
 	selectNotifiReactMessage,
 	selectNotifiSettingsEntitiesById,
-	useAppDispatch
+	useAppDispatch,
+	useAppSelector
 } from '@mezon/store';
 import { ENotificationTypes, FOR_15_MINUTES, FOR_1_HOUR, FOR_24_HOURS, FOR_3_HOURS, FOR_8_HOURS } from '@mezon/utils';
 import { format } from 'date-fns';
 import { Dropdown } from 'flowbite-react';
 import { RefObject, useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { notiLabels, notificationTypesList } from '../../../PanelChannel';
+import { notificationTypesList } from '../../../PanelChannel';
 import ItemPanel from '../../../PanelChannel/ItemPanel';
 
 const NotificationSetting = ({ onClose, rootRef }: { onClose: () => void; rootRef?: RefObject<HTMLElement> }) => {
 	const currentChannel = useSelector(selectCurrentChannel);
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(currentChannel?.id || ''));
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, currentChannel?.id || ''));
 	const dispatch = useAppDispatch();
 	const currentChannelId = useSelector(selectCurrentChannelId);
 	const currentClanId = useSelector(selectCurrentClanId);
 	const [nameChildren, setNameChildren] = useState('');
 	const [mutedUntil, setmutedUntil] = useState('');
-	const defaultNotificationCategory = useSelector(selectDefaultNotificationCategory);
+	const defaultNotificationCategory = useAppSelector((state) => selectDefaultNotificationCategory(state, currentChannel?.category_id as string));
+
 	const defaultNotificationClan = useSelector(selectDefaultNotificationClan);
 	const notifiReactMessage = useSelector(selectNotifiReactMessage);
-	const [defaultNotifiName, setDefaultNotifiName] = useState('');
 	const [isNotifyReactMessage, setisNotifyReactMessage] = useState(notifiReactMessage?.id !== '0');
 
 	useEffect(() => {
@@ -58,12 +59,6 @@ const NotificationSetting = ({ onClose, rootRef }: { onClose: () => void; rootRe
 					}, timeDifference);
 				}
 			}
-		}
-
-		if (defaultNotificationCategory?.notification_setting_type) {
-			setDefaultNotifiName(notiLabels[defaultNotificationCategory?.notification_setting_type]);
-		} else if (defaultNotificationClan?.notification_setting_type) {
-			setDefaultNotifiName(notiLabels[defaultNotificationClan.notification_setting_type]);
 		}
 	}, [getNotificationChannelSelected, defaultNotificationCategory, defaultNotificationClan]);
 
@@ -159,7 +154,7 @@ const NotificationSetting = ({ onClose, rootRef }: { onClose: () => void; rootRe
 						<ItemPanel children={nameChildren} subText={mutedUntil} onClick={() => muteOrUnMuteChannel(1)} />
 					)}
 				</div>
-				<div className="flex flex-col pb-2 mb-1 border-b-theme-primary last:border-b-0 last:mb-0 last:pb-0">
+				{/* <div className="flex flex-col pb-2 mb-1 border-b-[0.08px] dark:border-b-[#6A6A6A] border-b-[#E1E1E1] last:border-b-0 last:mb-0 last:pb-0">
 					<ItemPanel
 						children="Reaction Message"
 						type="checkbox"
@@ -167,7 +162,7 @@ const NotificationSetting = ({ onClose, rootRef }: { onClose: () => void; rootRe
 						checked={isNotifyReactMessage}
 						onClick={setNotiReactMess}
 					/>
-				</div>
+				</div> */}
 				<ItemPanel
 					children="Use Category Default"
 					type="radio"
@@ -177,7 +172,6 @@ const NotificationSetting = ({ onClose, rootRef }: { onClose: () => void; rootRe
 						getNotificationChannelSelected?.notification_setting_type === ENotificationTypes.DEFAULT ||
 						getNotificationChannelSelected?.notification_setting_type === undefined
 					}
-					subText={defaultNotifiName}
 					onClick={() => setNotification(ENotificationTypes.DEFAULT)}
 				/>
 				{notificationTypesList.map((notification) => (

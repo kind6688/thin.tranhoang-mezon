@@ -1,7 +1,6 @@
 import { useMyRole } from '@mezon/core';
 import {
 	permissionRoleChannelActions,
-	RolesClanEntity,
 	selectAllPermissionRoleChannel,
 	selectAllRolesClan,
 	selectAllUserChannel,
@@ -9,7 +8,8 @@ import {
 	selectCurrentClanId,
 	selectPermissionChannel,
 	selectRolesByChannelId,
-	useAppDispatch
+	useAppDispatch,
+	useAppSelector
 } from '@mezon/store';
 import { ApiPermissionUpdate } from 'mezon-js/api.gen';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -39,7 +39,7 @@ const MainPermissionManage: React.FC<MainPermissionManageProps> = ({
 	}, [permissions]);
 	const [currentRoleId, setCurrentRoleId] = useState<{ id: string; type: number }>();
 	const listPermission = useSelector(selectPermissionChannel);
-	const listPermissionRoleChannel = useSelector(selectAllPermissionRoleChannel);
+	const listPermissionRoleChannel = useAppSelector((state) => selectAllPermissionRoleChannel(state, channelId));
 	const rolesClan = useSelector(selectAllRolesClan);
 	const rolesInChannel = useSelector(selectRolesByChannelId(channelId));
 	const rawMembers = useSelector(selectAllUserChannel(channelId));
@@ -58,7 +58,6 @@ const MainPermissionManage: React.FC<MainPermissionManageProps> = ({
 	];
 
 	const { maxPermissionId } = useMyRole();
-	const [listRole, setListRole] = useState<RolesClanEntity[]>([]);
 	const dispatch = useAppDispatch();
 
 	const rolesNotInChannel = useMemo(() => {
@@ -183,7 +182,7 @@ const MainPermissionManage: React.FC<MainPermissionManageProps> = ({
 					onSelect={handleSelectRole}
 					canChange={permissionsLength === 0}
 				/>
-				<ListPermission listPermission={listPermission} onSelect={handleSelect} ref={listPermissionRef} />
+				<ListPermission channelId={channelId} listPermission={listPermission} onSelect={handleSelect} ref={listPermissionRef} />
 			</div>
 		)
 	);

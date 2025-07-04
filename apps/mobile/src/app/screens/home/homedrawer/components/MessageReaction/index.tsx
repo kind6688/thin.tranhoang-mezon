@@ -1,6 +1,5 @@
 import { useTheme } from '@mezon/mobile-ui';
-import { useAppSelector } from '@mezon/store';
-import { selectMessageByMessageId } from '@mezon/store-mobile';
+import { selectMessageByMessageId, useAppSelector } from '@mezon/store-mobile';
 import React from 'react';
 import { View } from 'react-native';
 import { combineMessageReactions } from '../../../../../utils/helpers';

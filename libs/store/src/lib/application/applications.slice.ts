@@ -1,9 +1,10 @@
 import { captureSentryError } from '@mezon/logger';
 import { LoadingStatus } from '@mezon/utils';
 import { createAsyncThunk, createEntityAdapter, createSelector, createSlice, EntityState, PayloadAction } from '@reduxjs/toolkit';
-import memoizee from 'memoizee';
 import { ApiAddAppRequest, ApiApp, ApiAppList, ApiMezonOauthClient, MezonUpdateAppBody } from 'mezon-js/api.gen';
+import { CacheMetadata, createApiKey, createCacheMetadata, markApiFirstCalled, shouldForceApiCall } from '../cache-metadata';
 import { ensureSession, getMezonCtx, MezonValueContext } from '../helpers';
+import { RootState } from '../store';
 
 export const ADMIN_APPLICATIONS = 'adminApplication';
 
@@ -20,6 +21,7 @@ export interface IApplicationState extends EntityState<IApplicationEntity, strin
 	currentAppId?: string;
 	isElectronDownLoading: boolean;
 	isElectronUpdateAvailable: boolean;
+	cache?: CacheMetadata;
 }
 
 export const applicationAdapter = createEntityAdapter({
@@ -49,27 +51,41 @@ export const applicationInitialState: IApplicationState = applicationAdapter.get
 	isElectronDownLoading: false
 });
 
-const FETCH_CACHED_TIME = 3 * 60 * 1000;
-
 export interface IFetchAppsArg {
 	noCache?: boolean;
 }
 
-const fetchApplicationsCached = memoizee((mezon: MezonValueContext) => mezon.client.listApps(mezon.session), {
-	promise: true,
-	maxAge: FETCH_CACHED_TIME,
-	normalizer: (args) => {
-		return args[0].session.username as string;
-	}
-});
+export const fetchApplicationsCached = async (getState: () => RootState, mezon: MezonValueContext, noCache = false) => {
+	const currentState = getState();
+	const applicationState = currentState[ADMIN_APPLICATIONS];
 
-export const fetchApplications = createAsyncThunk('adminApplication/fetchApplications', async ({ noCache }: IFetchAppsArg, thunkAPI) => {
+	const apiKey = createApiKey('fetchApplications', mezon.session.username || '');
+
+	const shouldForceCall = shouldForceApiCall(apiKey, applicationState.cache, noCache);
+
+	if (!shouldForceCall && applicationState.appsData?.apps?.length) {
+		return {
+			...applicationState.appsData,
+			fromCache: true,
+			time: applicationState.cache?.lastFetched || Date.now()
+		};
+	}
+
+	const response = await mezon.client.listApps(mezon.session);
+
+	markApiFirstCalled(apiKey);
+
+	return {
+		...response,
+		fromCache: false,
+		time: Date.now()
+	};
+};
+
+export const fetchApplications = createAsyncThunk('adminApplication/fetchApplications', async ({ noCache }: IFetchAppsArg = {}, thunkAPI) => {
 	try {
 		const mezon = await ensureSession(getMezonCtx(thunkAPI));
-		if (noCache) {
-			fetchApplicationsCached.delete(mezon);
-		}
-		const response = await fetchApplicationsCached(mezon);
+		const response = await fetchApplicationsCached(thunkAPI.getState as () => RootState, mezon, Boolean(noCache));
 		return response;
 	} catch (error) {
 		captureSentryError(error, 'adminApplication/fetchApplications');
@@ -188,10 +204,16 @@ export const adminApplicationSlice = createSlice({
 		builder.addCase(fetchApplications.pending, (state) => {
 			state.loadingStatus = 'loading';
 		});
-		builder.addCase(fetchApplications.fulfilled, (state, action) => {
+		builder.addCase(fetchApplications.fulfilled, (state, action: PayloadAction<ApiAppList & { fromCache?: boolean }>) => {
+			const { fromCache, ...appsData } = action.payload;
+
 			state.loadingStatus = 'loaded';
-			state.appsData = action.payload;
-			applicationAdapter.setAll(state, (action.payload.apps as IApplicationEntity[]) || []);
+
+			if (!fromCache) {
+				state.appsData = appsData;
+				state.cache = createCacheMetadata();
+				applicationAdapter.setAll(state, (appsData.apps as IApplicationEntity[]) || []);
+			}
 		});
 		builder.addCase(fetchApplications.rejected, (state) => {
 			state.loadingStatus = 'not loaded';

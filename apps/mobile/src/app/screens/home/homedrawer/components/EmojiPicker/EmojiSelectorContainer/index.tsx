@@ -8,7 +8,6 @@ import {
 	HeartIcon,
 	LeafIcon,
 	ObjectIcon,
-	PenIcon,
 	RibbonIcon,
 	SmilingFaceIcon
 } from '@mezon/mobile-components';
@@ -17,7 +16,7 @@ import { emojiSuggestionActions, getStore, selectCurrentChannelId, selectDmGroup
 import { FOR_SALE_CATE, IEmoji, RECENT_EMOJI_CATEGORY } from '@mezon/utils';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DeviceEventEmitter, Keyboard, TextInput, View } from 'react-native';
+import { DeviceEventEmitter, Keyboard, Text, TextInput, View } from 'react-native';
 import { useDispatch } from 'react-redux';
 import MezonClanAvatar from '../../../../../../componentUI/MezonClanAvatar';
 import MezonIconCDN from '../../../../../../componentUI/MezonIconCDN';
@@ -64,20 +63,15 @@ export default function EmojiSelectorContainer({
 			if (emojis?.length === 0 || !categoryParam) {
 				return [];
 			}
-			if (categoryParam?.toLowerCase() === FOR_SALE_CATE) {
-				return emojis
-					?.filter((emoji) => emoji?.is_for_sale)
-					?.map((emoji) => ({
-						...emoji,
-						category: categoryParam
-					}));
-			}
 
+			if (categoryParam?.toLowerCase() === FOR_SALE_CATE) {
+				return emojis.filter((emoji) => emoji?.is_for_sale);
+			}
 			return emojis
-				.filter((emoji) => !!emoji.id && emoji?.category?.includes(categoryParam))
+				.filter((emoji) => !!emoji?.id && emoji?.category?.includes(categoryParam) && !emoji?.is_for_sale)
 				.map((emoji) => ({
 					...emoji,
-					category: categoryParam
+					category: emoji?.category
 				}));
 		},
 		[]
@@ -91,7 +85,9 @@ export default function EmojiSelectorContainer({
 							<MezonClanAvatar alt={item?.clan_name} image={item?.clan_logo} />
 						</View>
 					) : (
-						<PenIcon color={themeValue.textStrong} />
+						<View style={styles.clanLogoText}>
+							<Text style={styles.clanNameText}>{item?.clan_name?.charAt(0)?.toUpperCase()}</Text>
+						</View>
 					)
 				)
 			: [];

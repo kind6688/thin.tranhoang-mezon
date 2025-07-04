@@ -44,13 +44,19 @@ const HomeDefault = React.memo(
 		const openBottomSheet = useCallback(() => {
 			Keyboard.dismiss();
 			setIsShowSettingNotifyBottomSheet(!isShowSettingNotifyBottomSheet);
-			timeoutRef.current = setTimeout(() => {
-				const data = {
-					heightFitContent: true,
-					children: <NotificationSetting />
-				};
+
+			const data = {
+				heightFitContent: true,
+				children: <NotificationSetting />
+			};
+
+			if (Platform.OS === 'ios') {
+				timeoutRef.current = setTimeout(() => {
+					DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_BOTTOM_SHEET, { isDismiss: false, data });
+				}, 200);
+			} else {
 				DeviceEventEmitter.emit(ActionEmitEvent.ON_TRIGGER_BOTTOM_SHEET, { isDismiss: false, data });
-			}, 200);
+			}
 		}, []);
 
 		useEffect(() => {

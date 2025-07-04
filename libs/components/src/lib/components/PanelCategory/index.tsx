@@ -53,7 +53,7 @@ const PanelCategory: React.FC<IPanelCategoryProps> = ({
 	const [positionTop, setPositionTop] = useState(false);
 	const [canManageCategory] = usePermissionChecker([EPermission.manageClan]);
 	const dispatch = useAppDispatch();
-	const defaultCategoryNotificationSetting = useAppSelector(selectDefaultNotificationCategory);
+	const defaultCategoryNotificationSetting = useAppSelector((state) => selectDefaultNotificationCategory(state, category?.id as string));
 	const currentClan = useAppSelector(selectCurrentClan);
 	const [muteUntil, setMuteUntil] = useState('');
 

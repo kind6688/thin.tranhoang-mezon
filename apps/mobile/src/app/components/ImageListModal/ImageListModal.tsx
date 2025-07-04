@@ -5,7 +5,7 @@ import { Snowflake } from '@theinternetfolks/snowflake';
 import { ApiMessageAttachment } from 'mezon-js/api.gen';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DeviceEventEmitter, View } from 'react-native';
+import { DeviceEventEmitter, useWindowDimensions, View } from 'react-native';
 import GalleryAwesome, { GalleryRef, RenderItemInfo } from 'react-native-awesome-gallery';
 import { useSelector } from 'react-redux';
 import { useThrottledCallback } from 'use-debounce';
@@ -28,6 +28,7 @@ const TIME_TO_HIDE_THUMBNAIL = 5000;
 const TIME_TO_SHOW_SAVE_IMAGE_SUCCESS = 3000;
 
 export const ImageListModal = React.memo((props: IImageListModalProps) => {
+	const { width, height } = useWindowDimensions();
 	const { imageSelected, channelId } = props;
 	const { t } = useTranslation('common');
 	const [currentImage, setCurrentImage] = useState<AttachmentEntity | null>(null);
@@ -177,6 +178,8 @@ export const ImageListModal = React.memo((props: IImageListModalProps) => {
 			)}
 			<GalleryAwesome
 				ref={ref}
+				style={{ flex: 1 }}
+				containerDimensions={{ height, width }}
 				initialIndex={initialIndex === -1 ? 0 : initialIndex}
 				data={formattedImageList}
 				keyExtractor={(item, index) => `${item?.filename}_${index}`}

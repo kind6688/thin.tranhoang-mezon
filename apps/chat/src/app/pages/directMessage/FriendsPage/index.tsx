@@ -219,12 +219,12 @@ const FriendsPage = () => {
 										<div className="text-red-500 dark:text-red-400 text-[14px] pb-5">You're already friends with that user!</div>
 									)}
 									<Button
-										label={'Send Friend Request'}
 										className="absolute top-3 right-2 text-[14px] py-[5px]"
 										disabled={!requestAddFriend.usernames?.length}
 										onClick={handleAddFriend}
-										noNeedOpacity={true}
-									/>
+									>
+										Send Friend Request
+									</Button>
 								</div>
 							</div>
 							<div className="flex flex-col items-center gap-7">

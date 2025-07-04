@@ -1,7 +1,6 @@
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { size } from '@mezon/mobile-ui';
-import { ChannelsEntity } from '@mezon/store';
-import { getStore, selectCurrentDM } from '@mezon/store-mobile';
+import { ChannelsEntity, getStore, selectCurrentDM } from '@mezon/store-mobile';
 import { User } from 'mezon-js';
 import React, { useEffect } from 'react';
 import { DeviceEventEmitter, View } from 'react-native';

@@ -73,7 +73,7 @@ function MessageMenu({ messageInfo }: IServerMenuProps) {
 		);
 	}, [messageInfo?.channel_label, messageInfo?.usernames]);
 
-	const getNotificationChannelSelected = useSelector(selectNotifiSettingsEntitiesById(messageInfo?.channel_id));
+	const getNotificationChannelSelected = useAppSelector((state) => selectNotifiSettingsEntitiesById(state, messageInfo?.channel_id || ''));
 
 	const isDmUnmute = useMemo(() => {
 		return (

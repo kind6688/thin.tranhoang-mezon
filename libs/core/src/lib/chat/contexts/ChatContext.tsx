@@ -52,7 +52,6 @@ import {
 	policiesActions,
 	resetChannelBadgeCount,
 	rolesClanActions,
-	selectAllEmojiSuggestion,
 	selectAllTextChannel,
 	selectAllThreads,
 	selectAllUserClans,
@@ -70,6 +69,7 @@ import {
 	selectCurrentUserId,
 	selectDmGroupCurrentId,
 	selectIsInCall,
+	selectLastMessageByChannelId,
 	selectModeResponsive,
 	selectStreamMembersByChannelId,
 	selectUserCallId,
@@ -295,10 +295,18 @@ const ChatContextProvider: React.FC<ChatContextProviderProps> = ({ children }) =
 
 	const onchannelmessage = useCallback(
 		async (message: ChannelMessage) => {
-			const store = await getStoreAsync();
-			// check mobile
+			const store = getStore();
 			const isMobile = false;
 			const currentDirectId = selectDmGroupCurrentId(store.getState());
+
+			if (message.id === '0') {
+				const lastMessage = selectLastMessageByChannelId(store.getState(), message.channel_id);
+				if (lastMessage?.id) {
+					message.id = (BigInt(lastMessage.id) + BigInt(1)).toString();
+					message.message_id = message.id;
+				}
+			}
+
 			if (message.code === TypeMessage.MessageBuzz) {
 				handleBuzz(message.channel_id, message.sender_id, true, message.mode);
 			}
@@ -885,10 +893,6 @@ const ChatContextProvider: React.FC<ChatContextProviderProps> = ({ children }) =
 
 	const oneventemoji = useCallback(
 		async (eventEmoji: EventEmoji) => {
-			const store = await getStoreAsync();
-			const state = store.getState() as RootState;
-			const emojiList = selectAllEmojiSuggestion(state) as ApiClanEmoji[];
-
 			if (eventEmoji.action === EEventAction.CREATED) {
 				const newEmoji: ApiClanEmoji = {
 					category: eventEmoji.clan_name,
@@ -896,13 +900,12 @@ const ChatContextProvider: React.FC<ChatContextProviderProps> = ({ children }) =
 					creator_id: eventEmoji.user_id,
 					id: eventEmoji.id,
 					shortname: eventEmoji.short_name,
-					src: eventEmoji.source,
+					src: eventEmoji.user_id === userId || !eventEmoji.is_for_sale ? eventEmoji.source : undefined,
 					logo: eventEmoji.logo,
 					clan_name: eventEmoji.clan_name
 				};
 
 				dispatch(emojiSuggestionActions.add(newEmoji));
-				dispatch(emojiSuggestionActions.updateEmojiCache([newEmoji, ...emojiList]));
 			} else if (eventEmoji.action === EEventAction.UPDATE) {
 				dispatch(
 					emojiSuggestionActions.update({
@@ -1620,20 +1623,23 @@ const ChatContextProvider: React.FC<ChatContextProviderProps> = ({ children }) =
 			if (status === EEventAction.CREATED && role) {
 				dispatch(
 					rolesClanActions.add({
-						id: role.id as string,
-						clan_id: role.clan_id,
-						title: role.title,
-						color: role.color,
-						role_icon: role.role_icon,
-						slug: role.slug,
-						description: role.description,
-						creator_id: role.creator_id,
-						active: role.active,
-						display_online: role.display_online,
-						allow_mention: role.allow_mention,
-						role_channel_active: role.role_channel_active,
-						channel_ids: role.channel_ids,
-						max_level_permission: role.max_level_permission
+						role: {
+							id: role.id as string,
+							clan_id: role.clan_id,
+							title: role.title,
+							color: role.color,
+							role_icon: role.role_icon,
+							slug: role.slug,
+							description: role.description,
+							creator_id: role.creator_id,
+							active: role.active,
+							display_online: role.display_online,
+							allow_mention: role.allow_mention,
+							role_channel_active: role.role_channel_active,
+							channel_ids: role.channel_ids,
+							max_level_permission: role.max_level_permission
+						},
+						clanId: role.clan_id as string
 					})
 				);
 
@@ -1674,7 +1680,7 @@ const ChatContextProvider: React.FC<ChatContextProviderProps> = ({ children }) =
 					}
 				}
 
-				dispatch(rolesClanActions.update(role));
+				dispatch(rolesClanActions.update({ role, clanId: role.clan_id as string }));
 				return;
 			}
 
@@ -1690,7 +1696,7 @@ const ChatContextProvider: React.FC<ChatContextProviderProps> = ({ children }) =
 				if (isUserResult) {
 					dispatch(policiesActions.removeOne(role.id as string));
 				}
-				dispatch(rolesClanActions.remove(role.id as string));
+				dispatch(rolesClanActions.remove({ roleId: role.id as string, clanId: role.clan_id as string }));
 			}
 		},
 		[userId]

@@ -1,8 +1,7 @@
 import { useAuth } from '@mezon/core';
 import { ActionEmitEvent } from '@mezon/mobile-components';
 import { baseColor, Colors, size, ThemeModeBase, useTheme } from '@mezon/mobile-ui';
-import { appActions } from '@mezon/store';
-import { getStoreAsync } from '@mezon/store-mobile';
+import { appActions, getStoreAsync } from '@mezon/store-mobile';
 import { sleep } from '@mezon/utils';
 import { useNavigation } from '@react-navigation/native';
 import { Snowflake } from '@theinternetfolks/snowflake';

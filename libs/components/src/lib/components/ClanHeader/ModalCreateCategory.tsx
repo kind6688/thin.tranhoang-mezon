@@ -2,18 +2,17 @@ import { checkDuplicateCategoryInClan, selectCurrentClanId, useAppDispatch } fro
 import { Icons, InputField } from '@mezon/ui';
 import { ValidateSpecialCharacters } from '@mezon/utils';
 import { unwrapResult } from '@reduxjs/toolkit';
-import { Modal } from 'flowbite-react';
 import { useCallback, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useDebouncedCallback } from 'use-debounce';
+import { ModalLayout } from '../../components';
 
 type ModalCreateCategoryProps = {
-	openCreateCate: boolean;
 	onClose: () => void;
 	onCreateCategory: (nameCate: string) => void;
 };
 
-const ModalCreateCategory = ({ openCreateCate, onClose, onCreateCategory }: ModalCreateCategoryProps) => {
+const ModalCreateCategory = ({ onClose, onCreateCategory }: ModalCreateCategoryProps) => {
 	const [nameCate, setNameCate] = useState('');
 	const [checkCategoryName, setCheckCategoryName] = useState(true);
 	const currentClanId = useSelector(selectCurrentClanId);
@@ -75,63 +74,65 @@ const ModalCreateCategory = ({ openCreateCate, onClose, onCreateCategory }: Moda
 	};
 
 	return (
-		<Modal show={openCreateCate} dismissible={true} onClose={onClose} className="bg-[#111111]  bg-opacity-80 text-theme-primary" size="lg">
-			<div className="theme-base-color flex items-center justify-between px-6 pt-4  rounded-tl-[5px] rounded-tr-[5px]">
-				<div className="text-[19px] font-bold uppercase">Create Category</div>
-				<button className="flex items-center justify-center opacity-50" onClick={onClose}>
-					<span className="text-4xl ">×</span>
-				</button>
-			</div>
-			<Modal.Body className="theme-base-color px-6 py-4">
-				<div className="flex flex-col">
-					<span className="font-[600] text-sm ">What is category's name?</span>
-					<InputField
-						type="text"
-						onChange={handleInputChange}
-						placeholder="Enter the category's name"
-						className="py-[8px] text-[14px] mt-2 mb-0 border-theme-primary bg-theme-input-primary"
-						value={nameCate}
-					/>
+		<ModalLayout onClose={onClose} className="bg-[#111111] text-theme-primary bg-opacity-80">
+			<div className="w-[480px]">
+				<div className="theme-base-color flex items-center justify-between px-6 pt-4 rounded-tl-[5px] rounded-tr-[5px]">
+					<div className="text-[19px] font-bold uppercase">Create Category</div>
+					<button className="flex items-center justify-center opacity-50" onClick={onClose}>
+						<span className="text-4xl">×</span>
+					</button>
 				</div>
-				{checkValidate && <p className="text-[#e44141] text-xs italic font-thin">{checkValidate}</p>}
-				<div className="flex flex-row justify-between my-2 items-center">
-					<div className="flex flex-row items-center">
-						<Icons.LockIcon />
-						<span className=" text-lg font-semibold">Private Category</span>
+				<div className="theme-base-color px-6 py-4">
+					<div className="flex flex-col">
+						<span className="font-[600] text-sm ">What is category's name?</span>
+						<InputField
+							type="text"
+							onChange={handleInputChange}
+							placeholder="Enter the category's name"
+							className="py-[8px] border-theme-primary bg-theme-input-primary text-[14px] mt-2 mb-0 border-blue-600 border"
+							value={nameCate}
+						/>
 					</div>
-					<div className="relative flex flex-wrap items-center">
-						<input
-							className="peer relative h-4 w-8 cursor-pointer appearance-none rounded-lg
+					{checkValidate && <p className="text-[#e44141] text-xs italic font-thin">{checkValidate}</p>}
+					<div className="flex flex-row justify-between my-2 items-center">
+						<div className="flex flex-row items-center">
+							<Icons.LockIcon />
+							<span className="text-lg font-semibold">Private Category</span>
+						</div>
+						<div className="relative flex flex-wrap items-center">
+							<input
+								className="peer relative h-4 w-8 cursor-pointer appearance-none rounded-lg
                bg-slate-300 transition-colors after:absolute after:top-0 after:left-0 after:h-4 after:w-4 after:rounded-full
                 after:bg-slate-500 after:transition-all checked:bg-blue-200 checked:after:left-4 checked:after:bg-blue-500
                  hover:bg-slate-400 after:hover:bg-slate-600 checked:hover:bg-blue-300 checked:after:hover:bg-blue-600
                   focus:outline-none checked:focus:bg-blue-400 checked:after:focus:bg-blue-700 focus-visible:outline-none disabled:cursor-not-allowed
                    disabled:bg-slate-200 disabled:after:bg-slate-300"
-							type="checkbox"
-							value={1}
-							id="id-c01"
-							onChange={handleToggle}
-						/>
+								type="checkbox"
+								value={1}
+								id="id-c01"
+								onChange={handleToggle}
+							/>
+						</div>
 					</div>
+					<p className="text-sm">
+						By making a category private, only select members and roles will be able to view this category. Synced channels in this
+						category will automatically match to this setting
+					</p>
 				</div>
-				<p className=" text-sm">
-					By making a category private, only select members and roles will be able to view this category. Synced channels in this category
-					will automatically match to this setting
-				</p>
-			</Modal.Body>
-			<div className="theme-base-color  font-semibold text-sm flex  justify-end flex-row items-center gap-4 py-4 px-6 rounded-bl-[5px] rounded-br-[5px]">
-				<button onClick={onClose} className="border-theme-primary px-4 py-2 rounded-lg hover:opacity-50">
-					Cancel
-				</button>
-				<button
-					className={`px-4 py-2 text-white rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150 bg-primary ${checkValidate ? 'opacity-50 cursor-not-allowed' : ''}`}
-					onClick={handleCreateCate}
-					disabled={checkCategoryName}
-				>
-					Create Category
-				</button>
+				<div className="text-white font-semibold text-sm flex dark:bg-bgTertiary bg-bgLightMode justify-end flex-row items-center gap-4 py-4 px-6 rounded-bl-[5px] rounded-br-[5px]">
+					<button onClick={onClose} className="dark:text-textSecondary text-textSecondary800">
+						Cancel
+					</button>
+					<button
+						className={`px-4 py-2 rounded shadow hover:shadow-lg outline-none focus:outline-none mr-1 mb-1 ease-linear transition-all duration-150 bg-primary ${checkValidate ? 'opacity-50 cursor-not-allowed' : ''}`}
+						onClick={handleCreateCate}
+						disabled={checkCategoryName}
+					>
+						Create Category
+					</button>
+				</div>
 			</div>
-		</Modal>
+		</ModalLayout>
 	);
 };
 

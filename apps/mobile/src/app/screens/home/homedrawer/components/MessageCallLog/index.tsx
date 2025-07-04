@@ -1,6 +1,6 @@
 import { CallLogCancelIcon, CallLogIncomingIcon, CallLogMissedIcon, CallLogOutgoingIcon } from '@mezon/mobile-components';
 import { baseColor, size, useTheme } from '@mezon/mobile-ui';
-import { selectAllAccount, selectDmGroupCurrent } from '@mezon/store';
+import { selectAllAccount, selectDmGroupCurrent } from '@mezon/store-mobile';
 import { IMessageCallLog, IMessageTypeCallLog } from '@mezon/utils';
 import { useNavigation } from '@react-navigation/native';
 import React, { memo, useMemo } from 'react';

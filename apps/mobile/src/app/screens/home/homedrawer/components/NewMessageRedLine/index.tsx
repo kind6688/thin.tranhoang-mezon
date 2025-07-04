@@ -1,5 +1,5 @@
 import { Colors, size, Text, useTheme } from '@mezon/mobile-ui';
-import { selectUnreadMessageIdByChannelId, useAppSelector } from '@mezon/store';
+import { selectUnreadMessageIdByChannelId, useAppSelector } from '@mezon/store-mobile';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Platform, View } from 'react-native';

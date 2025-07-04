@@ -1,10 +1,9 @@
 import { Metrics, size, useTheme } from '@mezon/mobile-ui';
-import { AttachmentEntity, selectAllListDocumentByChannel } from '@mezon/store-mobile';
+import { AttachmentEntity, selectAllListDocumentByChannel, useAppSelector } from '@mezon/store-mobile';
 import { FlashList } from '@shopify/flash-list';
 import { memo, useMemo, useState } from 'react';
 import { Dimensions, Platform, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
-import { useSelector } from 'react-redux';
 import useTabletLandscape from '../../hooks/useTabletLandscape';
 import { normalizeString } from '../../utils/helpers';
 import ChannelFileItem from './ChannelFileItem';
@@ -15,7 +14,7 @@ const ChannelFiles = memo(({ currentChannelId }: { currentChannelId: string }) =
 	const isTabletLandscape = useTabletLandscape();
 	const { themeValue } = useTheme();
 	const styles = style(themeValue);
-	const allAttachments = useSelector(selectAllListDocumentByChannel(currentChannelId));
+	const allAttachments = useAppSelector((state) => selectAllListDocumentByChannel(state, (currentChannelId ?? '') as string));
 	const [searchText, setSearchText] = useState('');
 
 	const filteredAttachments = useMemo(

@@ -66,6 +66,7 @@ const SettingStickerItem = ({ sticker, updateSticker }: SettingEmojiListProps) =
 					</button>
 				</div>
 			)}
+			{sticker.is_for_sale && <Icons.MarketIcons className="absolute top-1 right-1 w-4 h-4 text-yellow-300" />}
 		</div>
 	);
 };

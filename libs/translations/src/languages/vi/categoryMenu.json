@@ -27,6 +27,10 @@
             "title": "Xóa danh mục",
             "content": "Bạn có chắc chắn muốn xóa danh mục này không? Hành động này không thể khôi phục.",
             "confirmText": "Xóa"
+        },
+        "toast": {
+            "systemChannel": "Lỗi: {{categoryName}} chứa kênh hệ thống",
+            "error": "Xóa danh mục lỗi: {{error}}"
         }
     },
     "notify": {

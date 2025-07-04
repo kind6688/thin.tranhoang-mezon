@@ -3,6 +3,7 @@ import {
 	ChannelsEntity,
 	checkDuplicateChannelInCategory,
 	checkDuplicateThread,
+	fetchSystemMessageByClanId,
 	IUpdateChannelRequest,
 	IUpdateSystemMessage,
 	selectAppChannelById,
@@ -48,6 +49,16 @@ const OverviewChannel = (props: OverviewChannelProps) => {
 	const isThread = checkIsThread(channel as ChannelsEntity);
 	const [isAgeRestricted, setIsAgeRestricted] = useState(ageRestrictedInit);
 	const [isE2ee, setIsE2ee] = useState(e2eeInit);
+
+	const fetchSystemMessage = async () => {
+		if (!channel.clan_id) return;
+		await dispatch(fetchSystemMessageByClanId({ clanId: channel.clan_id }));
+	};
+
+	useEffect(() => {
+		fetchSystemMessage();
+	}, [channel]);
+
 	const handleCheckboxAgeRestricted = (event: React.ChangeEvent<HTMLInputElement>) => {
 		const checked = event.target.checked;
 		setIsAgeRestricted(checked ? 1 : 0);
@@ -61,8 +72,8 @@ const OverviewChannel = (props: OverviewChannelProps) => {
 	const [isCheckForSystemMsg, setIsCheckForSystemMsg] = useState(false);
 	const currentSystemMessage = useSelector(selectClanSystemMessage);
 	const thisIsSystemMessageChannel = useMemo(() => {
-		return channel.channel_id === currentSystemMessage.channel_id;
-	}, [channel.channel_id, currentSystemMessage.channel_id]);
+		return channel.channel_id === currentSystemMessage;
+	}, [channel.channel_id, currentSystemMessage]);
 
 	const label = useMemo(() => {
 		return isThread ? 'thread' : 'channel';

@@ -16,7 +16,7 @@ import {
 	setSelectedRoleId,
 	useAppDispatch
 } from '@mezon/store';
-import { Icons, InputField } from '@mezon/ui';
+import { ButtonLoading, Icons, InputField } from '@mezon/ui';
 import { DEFAULT_ROLE_COLOR, EVERYONE_ROLE_ID } from '@mezon/utils';
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -74,10 +74,7 @@ const ServerSettingMainRoles = (props: ModalOpenEdit) => {
 	}, [valueSearch, roles]);
 
 	const handleCreateNewRole = async () => {
-		setIsLoading(true);
 		const newRole = await createRole(currentClanId || '', 'New Role', DEFAULT_ROLE_COLOR, [], []);
-		setIsLoading(false);
-
 		dispatch(setSelectedRoleId(newRole?.id || ''));
 		dispatch(setNameRoleNew('New Role'));
 		dispatch(setColorRoleNew(DEFAULT_ROLE_COLOR));
@@ -120,14 +117,11 @@ const ServerSettingMainRoles = (props: ModalOpenEdit) => {
 								onChange={(e) => setValueSearch(e.target.value)}
 							/>
 						</div>
-						<button
-							className="text-[15px] bg-blue-600 hover:bg-blue-500 rounded-lg py-[5px] px-2 text-nowrap font-medium inline-flex items-center justify-center h-[32.5px]"
+						<ButtonLoading
+							className="text-[15px] bg-blue-600 hover:bg-blue-500 rounded-[3px] py-[5px] px-2 text-nowrap font-medium inline-flex items-center justify-center h-[32.5px]"
 							onClick={handleCreateNewRole}
-						>
-							<span className="relative inline-flex items-center justify-center min-w-[100px] text-white">
-								{isLoading ? <Icons.IconLoadingTyping bgFill="mx-auto" /> : 'Create Role'}
-							</span>
-						</button>
+							label="Create Role"
+						/>
 					</div>
 					<p className=" text-sm mt-2">
 						Members use the colour of the highest role they have on this list. Drag roles to reorder them.&nbsp;

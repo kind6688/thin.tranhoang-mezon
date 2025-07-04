@@ -48,7 +48,7 @@ export const fetchListChannelsByUserCached = async (getState: () => RootState, e
 
 	const shouldForceCall = shouldForceApiCall(apiKey, channelsByUserState?.cache, noCache);
 
-	if (!shouldForceCall && channelsByUserState?.ids.length > 0) {
+	if (!shouldForceCall) {
 		const channels = selectCachedChannelsByUser(currentState);
 		return {
 			channeldesc: channels,

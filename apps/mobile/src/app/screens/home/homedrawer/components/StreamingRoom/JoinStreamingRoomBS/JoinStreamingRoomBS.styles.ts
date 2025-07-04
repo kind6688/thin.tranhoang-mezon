@@ -15,8 +15,9 @@ export const style = (colors: Attributes) =>
 			borderRadius: size.s_40,
 			backgroundColor: baseColor.green,
 			height: size.s_50,
+			width: size.s_200,
 			justifyContent: 'center',
-			alignItems: 'center'
+			alignItems: 'center',
 		},
 		textBtnJoinVoice: { fontSize: size.s_16, fontWeight: '600', color: baseColor.black }
 	});
