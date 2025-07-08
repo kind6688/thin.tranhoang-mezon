@@ -64,7 +64,7 @@
 	--theme-input: hsl(240 4% 30% / 0.2);
 	--theme-border-input: color-mix(in oklab, hsl(240 4% 60% / 0.4) 100%, hsl(183 100% 80% / 0.3) 50%);
 	/* màu nền của clan */
-	--theme-base-color: linear-gradient(rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.06));
+	--theme-base-color: linear-gradient(rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.13));
 	--theme-text-color-dark: rgb(229, 254, 255);
 	--theme-setting-primary: rgb(27, 28, 32);
 	--theme-setting-nav: rgb(21, 22, 24);
