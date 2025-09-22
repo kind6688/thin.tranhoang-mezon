@@ -77,6 +77,9 @@ const ModalSendToken = ({
 			setSearchTerm(name);
 			setIsDropdownOpen(false);
 			setSelectedUserId(id);
+			if (amountRef.current) {
+				amountRef.current.focus();
+			}
 		},
 		[setSelectedUserId]
 	);
@@ -182,18 +185,8 @@ const ModalSendToken = ({
 	);
 
 	useEffect(() => {
-		const user = filteredUsers.find((user) => user.id === selectedUserId);
-		if (user) {
-			handleSelectUser(user.id, user.username);
-		}
-
 		setTokenNumber(formatNumber(Number(token), i18n.language === 'vi' ? 'vi-VN' : 'en-US'));
-	}, [token, selectedUserId, filteredUsers, handleSelectUser, i18n.language]);
-	useEffect(() => {
-		if (selectedUserId && amountRef.current && !token) {
-			amountRef.current.focus();
-		}
-	}, [selectedUserId]);
+	}, [token, i18n.language]);
 
 	const handleSendToken = () => {
 		const userData = mergedUsers.find((user) => user.id === selectedUserId);
